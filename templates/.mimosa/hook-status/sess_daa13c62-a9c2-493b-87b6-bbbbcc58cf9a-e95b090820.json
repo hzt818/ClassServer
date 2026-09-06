@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "mimosa-hook-status/v1",
+  "recordedAt": "2026-08-30T08:47:17.856Z",
+  "sessionId": "sess_daa13c62-a9c2-493b-87b6-bbbbcc58cf9a",
+  "event": "PostToolUse",
+  "toolName": "Edit",
+  "file": "D:\\VisualClassroom\\ClassServer\\handlers\\essay.go",
+  "outcome": "inconclusive",
+  "coverage": "partial",
+  "findingCount": 0,
+  "durationMs": 9,
+  "hostState": "hook_complete",
+  "reportHint": ".mimosa/reports/"
+}

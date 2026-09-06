@@ -1,0 +1,898 @@
+{{define "admin_users"}}
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>账号管理 - MYClassroom</title>
+    <script>
+        (function(){try{var t=localStorage.getItem('vc-theme');if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();
+    </script>
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css?v=202608322">
+    <link rel="stylesheet" href="/static/css/style.css?v=202608322">
+    <link rel="stylesheet" href="/static/css/dashboard.css?v=202608322">
+</head>
+<body class="app-body">
+<div class="dashboard-container">
+    {{template "sidebar" .}}
+    <main class="main-content">
+        <header class="top-bar">
+            <div class="user-info">
+                <span class="page-name">账号管理</span>
+                <span class="role-badge">{{if eq .Role "teacher"}}教师{{else}}学生{{end}}</span>
+            </div>
+            <div class="header-actions">
+                <span class="last-login">上次登录：{{.LastLogin}}</span>
+            </div>
+        </header>
+        <section class="content-panel">
+            <div class="admin-container">
+                <div class="admin-toolbar">
+                    <button class="primary" id="addSingleBtn"><i class="fas fa-user-plus"></i> 添加</button>
+                    <button class="primary" id="batchAddBtn"><i class="fas fa-users"></i> 批量添加</button>
+                    <button id="renameSingleBtn"><i class="fas fa-pen"></i> 重命名</button>
+                    <button id="batchRenameBtn"><i class="fas fa-edit"></i> 批量重命名</button>
+                    <button class="danger" id="deleteSelectedBtn"><i class="fas fa-trash"></i> 删除选中</button>
+                    {{if .BuildDev}}<button id="exportRecordsBtn"><i class="fas fa-file-export"></i> 导出记录</button>{{end}}
+                    <span style="flex:1;"></span>
+                    <button class="time-mgmt-btn" id="timeMgmtBtn">
+                        <i class="fas fa-clock"></i> 学生聊天时间管理
+                    </button>
+                    <button id="refreshBtn" title="刷新"><i class="fas fa-sync-alt"></i></button>
+                </div>
+                <div class="admin-table-wrap">
+                    <table class="admin-table" id="userTable">
+                        <thead>
+                        <tr>
+                            <th class="checkbox-col"><input type="checkbox" id="selectAll"></th>
+                            <th>ID</th>
+                            <th>头像</th>
+                            <th>用户名</th>
+                            <th>角色</th>
+                            <th>姓名</th>
+                            <th>最后活动</th>
+                            <th>操作</th>
+                        </tr>
+                        </thead>
+                        <tbody id="userTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<!-- 时间管理模态框 -->
+<div class="time-modal-overlay" id="timeModal">
+    <div class="time-modal">
+        <button class="close-btn" id="timeModalClose"><i class="fas fa-times"></i></button>
+        <h2><i class="fas fa-clock" style="color:#6c63ff;"></i> 学生聊天时间管理</h2>
+        <div class="mode-selector">
+            <button data-mode="weekday">📅 按星期</button>
+            <button class="active" data-mode="date">📆 按日期</button>
+        </div>
+        <div class="rules-list" id="rulesList"></div>
+        <button class="add-btn" id="addRuleBtn"><i class="fas fa-plus"></i> 添加时间段</button>
+        <div class="modal-actions">
+            <button class="clear-btn" id="timeModalClearAll" title="移除所有时间段限制，学生将不受时段限制"><i class="fas fa-ban"></i> 清空限制</button>
+            <button class="cancel-btn" id="timeModalCancel">取消</button>
+            <button class="save-btn" id="timeModalSave">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- 通用模态框（用于表单输入） -->
+<div class="modal-overlay" id="modal">
+    <div class="modal-content">
+        <div class="modal-title" id="modalTitle">操作</div>
+        <div id="modalBody">
+            <div class="modal-error" id="modalError"></div>
+        </div>
+        <div class="modal-footer" id="modalFooter">
+            <button class="cancel-btn" id="modalCancel">取消</button>
+            <button class="confirm-btn" id="modalConfirm">确认</button>
+        </div>
+    </div>
+</div>
+
+<!-- 自定义确认模态框（用于删除/清除操作） -->
+<div class="confirm-modal-overlay" id="confirmModal">
+    <div class="confirm-modal">
+        <div class="confirm-icon"><i class="fas fa-exclamation-triangle"></i></div>
+        <h3 id="confirmTitle">确认操作</h3>
+        <p id="confirmMessage">确定执行此操作吗？</p>
+        <div class="confirm-actions">
+            <button class="btn-cancel" id="confirmCancel">取消</button>
+            <button class="btn-confirm-danger" id="confirmOk">确认</button>
+        </div>
+    </div>
+</div>
+
+<script>
+
+    // 工具函数
+
+    let users = [];
+    const currentUserID = parseInt("{{.UserID}}");
+    const tbody = document.getElementById('userTableBody');
+    const selectAll = document.getElementById('selectAll');
+    const modalOverlay = document.getElementById('modal');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalBody = document.getElementById('modalBody');
+    const modalConfirm = document.getElementById('modalConfirm');
+    const modalCancel = document.getElementById('modalCancel');
+    const modalError = document.getElementById('modalError');
+
+    // 确认模态框
+    const confirmModal = document.getElementById('confirmModal');
+    const confirmTitle = document.getElementById('confirmTitle');
+    const confirmMessage = document.getElementById('confirmMessage');
+    const confirmOk = document.getElementById('confirmOk');
+    const confirmCancel = document.getElementById('confirmCancel');
+
+    // ---- 自定义确认对话框 ----
+    function showConfirm(title, message) {
+        return new Promise((resolve) => {
+            confirmTitle.textContent = title || '确认操作';
+            confirmMessage.textContent = message || '确定执行此操作吗？';
+            confirmModal.classList.add('active');
+
+            const onOk = () => {
+                cleanup();
+                resolve(true);
+            };
+            const onCancel = () => {
+                cleanup();
+                resolve(false);
+            };
+            const cleanup = () => {
+                confirmOk.removeEventListener('click', onOk);
+                confirmCancel.removeEventListener('click', onCancel);
+                closeOverlay(confirmModal);
+            };
+            confirmOk.addEventListener('click', onOk);
+            confirmCancel.addEventListener('click', onCancel);
+        });
+    }
+
+    // ---- 其他工具函数 ----
+    function getAvatarColor(username) {
+        let hash = 0;
+        for (let i = 0; i < username.length; i++) {
+            hash = username.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        // 暖色派生色板（与主题陶土/橄榄/雾蓝体系一致，白字对比度达标）
+        const colors = ['#c96442','#788c5d','#6a9bcc','#8f7bb8','#d97706','#3a9ea5','#b0532f','#6e8a52','#5c8bb8','#7c6aa8','#c05f11','#2f8a92'];
+        return colors[Math.abs(hash) % colors.length];
+    }
+    function avatarHTML(username, size = 32) {
+        const color = getAvatarColor(username);
+        const initial = username.charAt(0).toUpperCase();
+        return `<div class="avatar-circle" style="background:${color}; width:${size}px; height:${size}px; font-size:${size*0.45}px;">${initial}</div>`;
+    }
+    function avatarImgOrCircle(user, size = 32) {
+        if (user.avatar) {
+            return `<img src="${user.avatar}" style="width:${size}px; height:${size}px; border-radius:50%; object-fit:cover;" alt="avatar">`;
+        } else {
+            return avatarHTML(user.username, size);
+        }
+    }
+    function escapeHtml(text) {
+        if (!text) return '';
+        return String(text).replace(/[&<>"]/g, m => {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            if (m === '"') return '&quot;';
+            return m;
+        });
+    }
+    function formatTime(t) {
+        if (!t) return '从未登录';
+        const d = new Date(t);
+        return d.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+    }
+    async function apiFetch(url, opts = {}) {
+        const resp = await fetch(url, {
+            headers: { 'Content-Type': 'application/json' },
+            ...opts,
+        });
+        if (!resp.ok) {
+            let errMsg = '请求失败';
+            try {
+                const data = await resp.json();
+                errMsg = data.error || errMsg;
+            } catch (e) {}
+            throw new Error(errMsg);
+        }
+        return resp.json();
+    }
+
+    // ---- 加载并渲染用户 ----
+    async function loadUsers() {
+        try {
+            const data = await apiFetch('/api/admin/users');
+            users = Array.isArray(data) ? data : [];
+            renderTable();
+        } catch (e) {
+            console.error('加载用户失败:', e);
+            users = [];
+            renderTable();
+            alert('加载用户列表失败: ' + e.message);
+        }
+    }
+    function renderTable() {
+        if (!users || !Array.isArray(users)) users = [];
+        if (users.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:20px; color:#888;">暂无用户数据</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = users.map(u => `
+                <tr>
+                    <td class="checkbox-col"><input type="checkbox" class="row-checkbox" data-id="${u.id}"></td>
+                    <td>${u.id}</td>
+                    <td class="avatar-cell">${avatarImgOrCircle(u)}</td>
+                    <td>${escapeHtml(u.username)}</td>
+                    <td><span class="role-badge ${u.role}">${u.role === 'teacher' ? '教师' : '学生'}</span></td>
+                    <td>${escapeHtml(u.full_name || '')}</td>
+                    <td class="last-login">${formatTime(u.last_login)}</td>
+                    <td class="actions">
+                        <button class="edit-btn" data-id="${u.id}" title="编辑"><i class="fas fa-pen"></i></button>
+                        <button class="delete-btn" data-id="${u.id}" title="删除"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        // 绑定事件
+        document.querySelectorAll('.row-checkbox').forEach(cb => cb.addEventListener('change', updateSelectAllState));
+        selectAll.addEventListener('change', function() {
+            document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = this.checked);
+        });
+        document.querySelectorAll('.edit-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const id = parseInt(this.dataset.id);
+                const user = users.find(u => u.id === id);
+                if (user) showEditModal(user);
+            });
+        });
+        document.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.addEventListener('click', async function() {
+                const id = parseInt(this.dataset.id);
+                if (id === currentUserID) {
+                    await showConfirm('提示', '不能删除自己的账号');
+                    return;
+                }
+                const confirmed = await showConfirm('删除用户', `确定要删除用户 ${id} 吗？`);
+                if (confirmed) deleteUser(id);
+            });
+        });
+    }
+    function updateSelectAllState() {
+        const checked = document.querySelectorAll('.row-checkbox:checked').length;
+        const total = document.querySelectorAll('.row-checkbox').length;
+        selectAll.checked = (checked === total);
+        selectAll.indeterminate = (checked > 0 && checked < total);
+    }
+
+    // ---- 通用表单模态框 ----
+    function showModal(title, bodyHTML, confirmText = '确认', isDanger = false, validateFn = null) {
+        return new Promise((resolve) => {
+            modalTitle.textContent = title;
+            modalBody.innerHTML = bodyHTML;
+            // 确保错误区域存在
+            if (!document.getElementById('modalError')) {
+                const errDiv = document.createElement('div');
+                errDiv.id = 'modalError';
+                errDiv.className = 'modal-error';
+                modalBody.appendChild(errDiv);
+            }
+            const errEl = document.getElementById('modalError');
+            errEl.classList.remove('show');
+            errEl.textContent = '';
+
+            modalConfirm.textContent = confirmText;
+            modalConfirm.className = isDanger ? 'danger-btn' : 'confirm-btn';
+            modalOverlay.classList.add('active');
+
+            const onConfirm = () => {
+                if (validateFn) {
+                    const result = validateFn();
+                    if (result === false) return;
+                }
+                cleanup();
+                resolve(true);
+            };
+            const onCancel = () => {
+                cleanup();
+                resolve(false);
+            };
+            const cleanup = () => {
+                modalConfirm.removeEventListener('click', onConfirm);
+                modalCancel.removeEventListener('click', onCancel);
+                closeOverlay(modalOverlay);
+                const err = document.getElementById('modalError');
+                if (err) {
+                    err.classList.remove('show');
+                    err.textContent = '';
+                }
+            };
+            modalConfirm.addEventListener('click', onConfirm);
+            modalCancel.addEventListener('click', onCancel);
+        });
+    }
+
+    // 操作函数
+
+    // ---- 添加单个 ----
+    async function addSingle() {
+        const html = `
+            <div class="input-group"><label>用户名</label><input type="text" id="newUsername" placeholder="用户名"></div>
+            <div class="input-group"><label>角色</label><select id="newRole"><option value="student">学生</option><option value="teacher">教师</option></select></div>
+        `;
+        const validate = () => {
+            const username = document.getElementById('newUsername');
+            const err = document.getElementById('modalError');
+            if (!username || !username.value.trim()) {
+                err.textContent = '用户名不能为空';
+                err.classList.add('show');
+                return false;
+            }
+            err.classList.remove('show');
+            return true;
+        };
+        const confirmed = await showModal('添加用户', html, '添加', false, validate);
+        if (!confirmed) return;
+        const username = document.getElementById('newUsername').value.trim();
+        const role = document.getElementById('newRole').value;
+        try {
+            await apiFetch('/api/admin/users', { method: 'POST', body: JSON.stringify([{ username, role }]) });
+            loadUsers();
+        } catch (e) {
+            const err = document.getElementById('modalError');
+            err.textContent = '添加失败: ' + e.message;
+            err.classList.add('show');
+            // 由于模态框已关闭，这里改用 alert 作为后备，但可优化：保持模态框打开（略复杂）
+            alert('添加失败: ' + e.message);
+        }
+    }
+
+    // ---- 批量添加 ----
+    async function batchAdd() {
+        const html = `
+            <p style="color:#ccc;">每行一个用户名，默认角色为学生（可添加 role:teacher 指定）</p>
+            <div class="input-group"><textarea id="batchUsers" placeholder="user1&#10;user2&#10;user3:teacher" rows="6"></textarea></div>
+        `;
+        const validate = () => {
+            const textarea = document.getElementById('batchUsers');
+            const err = document.getElementById('modalError');
+            if (!textarea || !textarea.value.trim()) {
+                err.textContent = '请输入至少一个用户名';
+                err.classList.add('show');
+                return false;
+            }
+            err.classList.remove('show');
+            return true;
+        };
+        const confirmed = await showModal('批量添加用户', html, '批量添加', false, validate);
+        if (!confirmed) return;
+        const raw = document.getElementById('batchUsers').value;
+        const lines = raw.split('\n').map(s => s.trim()).filter(s => s);
+        const items = lines.map(line => {
+            let username = line, role = 'student';
+            if (line.includes(':')) { const parts = line.split(':'); username = parts[0].trim(); role = parts[1].trim() || 'student'; }
+            return { username, role };
+        });
+        if (!items.length) {
+            const err = document.getElementById('modalError');
+            err.textContent = '没有有效的用户条目';
+            err.classList.add('show');
+            return;
+        }
+        try {
+            await apiFetch('/api/admin/users', { method: 'POST', body: JSON.stringify(items) });
+            loadUsers();
+        } catch (e) {
+            alert('批量添加失败: ' + e.message);
+        }
+    }
+
+    // ---- 编辑用户 ----
+    function showEditModal(user) {
+        const previewHtml = user.avatar
+            ? `<img src="${user.avatar}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`
+            : avatarHTML(user.username, 60);
+        const html = `
+            <div class="input-group"><label>用户名</label><input type="text" id="editUsername" value="${escapeHtml(user.username)}"></div>
+            <div class="input-group"><label>姓名</label><input type="text" id="editFullName" value="${escapeHtml(user.full_name || '')}"></div>
+            <div class="input-group"><label>角色</label><select id="editRole">
+                <option value="student" ${user.role==='student'?'selected':''}>学生</option>
+                <option value="teacher" ${user.role==='teacher'?'selected':''}>教师</option>
+            </select></div>
+            <div class="input-group"><label>新密码（留空不修改）</label><input type="password" id="editPassword" placeholder="输入新密码"></div>
+            <div class="input-group">
+                <label>头像</label>
+                <div class="avatar-upload">
+                    <div class="preview-circle" id="editAvatarPreview">${previewHtml}</div>
+                    <div class="file-upload-wrapper">
+                        <button class="file-upload-btn" type="button"><i class="fas fa-upload"></i> 选择图片</button>
+                        <input type="file" id="editAvatarInput" accept="image/*">
+                    </div>
+                    <button class="clear-avatar-btn" id="clearAvatarBtn" type="button"><i class="fas fa-times"></i> 清除头像</button>
+                </div>
+            </div>
+        `;
+        const validate = () => {
+            const username = document.getElementById('editUsername');
+            const err = document.getElementById('modalError');
+            if (!username || !username.value.trim()) {
+                err.textContent = '用户名不能为空';
+                err.classList.add('show');
+                return false;
+            }
+            err.classList.remove('show');
+            return true;
+        };
+        showModal('编辑用户', html, '保存', false, validate).then(async confirmed => {
+            if (!confirmed) return;
+            const username = document.getElementById('editUsername').value.trim();
+            const role = document.getElementById('editRole').value;
+            const fullName = document.getElementById('editFullName').value.trim();
+            const password = document.getElementById('editPassword').value;
+            if (!username) return;
+            const payload = { username, role };
+            if (fullName) payload.full_name = fullName;
+            if (password) payload.password = password;
+            try {
+                await apiFetch(`/api/admin/users/${user.id}`, { method: 'PUT', body: JSON.stringify(payload) });
+                loadUsers();
+            } catch (e) {
+                alert('更新失败: ' + e.message);
+            }
+        });
+
+        // 头像上传（使用自定义确认）
+        setTimeout(() => {
+            const avatarInput = document.getElementById('editAvatarInput');
+            const previewContainer = document.getElementById('editAvatarPreview');
+            const clearBtn = document.getElementById('clearAvatarBtn');
+            if (avatarInput) {
+                avatarInput.addEventListener('change', async function() {
+                    const file = this.files[0];
+                    if (!file) return;
+                    const formData = new FormData();
+                    formData.append('avatar', file);
+                    try {
+                        const resp = await fetch(`/api/admin/users/${user.id}/avatar`, {
+                            method: 'POST',
+                            body: formData,
+                        });
+                        if (!resp.ok) {
+                            const errText = await resp.text();
+                            throw new Error(errText);
+                        }
+                        const data = await resp.json();
+                        if (data.success) {
+                            const imgUrl = data.avatar + '?t=' + Date.now();
+                            previewContainer.innerHTML = `<img src="${imgUrl}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
+                            user.avatar = data.avatar;
+                            loadUsers();
+                        } else {
+                            alert('上传失败: ' + (data.error || '未知错误'));
+                        }
+                    } catch (e) {
+                        alert('上传失败: ' + e.message);
+                    }
+                    this.value = '';
+                });
+            }
+            if (clearBtn) {
+                clearBtn.addEventListener('click', async function() {
+                    const confirmed = await showConfirm('清除头像', '确定要清除该用户的头像吗？');
+                    if (!confirmed) return;
+                    try {
+                        await apiFetch(`/api/admin/users/${user.id}`, {
+                            method: 'PUT',
+                            body: JSON.stringify({ avatar: '' }),
+                        });
+                        user.avatar = '';
+                        previewContainer.innerHTML = avatarHTML(user.username, 60);
+                        loadUsers();
+                    } catch (e) {
+                        alert('清除失败: ' + e.message);
+                    }
+                });
+            }
+        }, 100);
+    }
+
+    // ---- 删除单个 ----
+    async function deleteUser(id) {
+        try {
+            await apiFetch(`/api/admin/users/${id}`, { method: 'DELETE' });
+            loadUsers();
+        } catch (e) {
+            alert('删除失败: ' + e.message);
+        }
+    }
+
+    // ---- 删除选中 ----
+    async function deleteSelected() {
+        const checked = document.querySelectorAll('.row-checkbox:checked');
+        if (!checked.length) {
+            await showConfirm('提示', '请至少选择一位用户');
+            return;
+        }
+        const ids = Array.from(checked).map(cb => parseInt(cb.dataset.id)).filter(id => id !== currentUserID);
+        if (!ids.length) {
+            await showConfirm('提示', '不能删除自己的账号');
+            return;
+        }
+        const confirmed = await showConfirm('删除选中用户', `确定删除选中的 ${ids.length} 个用户吗？`);
+        if (!confirmed) return;
+        try {
+            await apiFetch('/api/admin/users', { method: 'DELETE', body: JSON.stringify({ ids }) });
+            loadUsers();
+        } catch (e) {
+            alert('删除失败: ' + e.message);
+        }
+    }
+
+    // ---- 导出记录 ----
+    async function exportRecords() {
+        const selectedIds = Array.from(document.querySelectorAll('.row-checkbox:checked')).map(cb => cb.dataset.id);
+        const scopeLabel = selectedIds.length > 0 ? `已选中 ${selectedIds.length} 位用户` : '全部用户';
+        const html = `
+            <div class="input-group">
+                <label>记录类型</label>
+                <select id="exportTypeSelect">
+                    <option value="all">全部记录（聊天 + 批改）</option>
+                    <option value="chat">仅聊天记录</option>
+                    <option value="essay">仅批改记录</option>
+                </select>
+            </div>
+            <p style="color:#888;font-size:13px;margin-top:8px;">导出范围：${scopeLabel}（勾选表格中的用户可缩小范围）</p>
+        `;
+        const confirmed = await showModal('导出记录', html, '导出', false);
+        if (!confirmed) return;
+        const type = document.getElementById('exportTypeSelect').value;
+        const params = new URLSearchParams({ type });
+        if (selectedIds.length > 0) params.set('user_ids', selectedIds.join(','));
+        window.location.href = '/api/admin/export/records?' + params.toString();
+    }
+
+    // ---- 批量重命名 ----
+    async function batchRename() {
+        const html = `
+            <p style="color:#ccc;">每行一个映射，格式：旧用户名:新用户名</p>
+            <div class="input-group"><textarea id="renameMappings" placeholder="olduser:newuser&#10;old2:new2" rows="6"></textarea></div>
+        `;
+        const validate = () => {
+            const textarea = document.getElementById('renameMappings');
+            const err = document.getElementById('modalError');
+            if (!textarea || !textarea.value.trim()) {
+                err.textContent = '请输入至少一个映射';
+                err.classList.add('show');
+                return false;
+            }
+            const lines = textarea.value.split('\n').map(s => s.trim()).filter(s => s);
+            let valid = true;
+            for (const line of lines) {
+                if (!line.includes(':')) {
+                    err.textContent = `格式错误： "${line}" 缺少冒号分隔符`;
+                    err.classList.add('show');
+                    valid = false;
+                    break;
+                }
+                const parts = line.split(':');
+                if (parts.length !== 2 || !parts[0].trim() || !parts[1].trim()) {
+                    err.textContent = `格式错误： "${line}" 格式不正确，应为 "旧:新"`;
+                    err.classList.add('show');
+                    valid = false;
+                    break;
+                }
+            }
+            if (valid) err.classList.remove('show');
+            return valid;
+        };
+        const confirmed = await showModal('批量重命名', html, '重命名', false, validate);
+        if (!confirmed) return;
+        const raw = document.getElementById('renameMappings').value;
+        const lines = raw.split('\n').map(s => s.trim()).filter(s => s);
+        const mappings = {};
+        for (const line of lines) {
+            if (line.includes(':')) { const parts = line.split(':'); mappings[parts[0].trim()] = parts[1].trim(); }
+        }
+        if (!Object.keys(mappings).length) {
+            const err = document.getElementById('modalError');
+            err.textContent = '没有有效的映射';
+            err.classList.add('show');
+            return;
+        }
+        try {
+            await apiFetch('/api/admin/users/rename', { method: 'POST', body: JSON.stringify({ mappings }) });
+            loadUsers();
+        } catch (e) {
+            alert('批量重命名失败: ' + e.message);
+        }
+    }
+
+    // ---- 单个重命名 ----
+    async function renameSingle() {
+        const html = `
+            <div class="input-group"><label>旧用户名</label><input type="text" id="oldUsername" placeholder="旧用户名"></div>
+            <div class="input-group"><label>新用户名</label><input type="text" id="newUsernameSingle" placeholder="新用户名"></div>
+        `;
+        const validate = () => {
+            const oldName = document.getElementById('oldUsername');
+            const newName = document.getElementById('newUsernameSingle');
+            const err = document.getElementById('modalError');
+            if (!oldName || !oldName.value.trim() || !newName || !newName.value.trim()) {
+                err.textContent = '旧用户名和新用户名都不能为空';
+                err.classList.add('show');
+                return false;
+            }
+            err.classList.remove('show');
+            return true;
+        };
+        const confirmed = await showModal('重命名用户', html, '重命名', false, validate);
+        if (!confirmed) return;
+        const oldName = document.getElementById('oldUsername').value.trim();
+        const newName = document.getElementById('newUsernameSingle').value.trim();
+        if (!oldName || !newName) return;
+        try {
+            await apiFetch('/api/admin/users/rename', { method: 'POST', body: JSON.stringify({ mappings: { [oldName]: newName } }) });
+            loadUsers();
+        } catch (e) {
+            alert('重命名失败: ' + e.message);
+        }
+    }
+
+    // ---- 绑定按钮 ----
+    document.getElementById('addSingleBtn').addEventListener('click', addSingle);
+    document.getElementById('batchAddBtn').addEventListener('click', batchAdd);
+    document.getElementById('renameSingleBtn').addEventListener('click', renameSingle);
+    document.getElementById('batchRenameBtn').addEventListener('click', batchRename);
+    document.getElementById('deleteSelectedBtn').addEventListener('click', deleteSelected);
+    const exportRecordsBtn = document.getElementById('exportRecordsBtn');
+    if (exportRecordsBtn) exportRecordsBtn.addEventListener('click', exportRecords);
+    document.getElementById('refreshBtn').addEventListener('click', loadUsers);
+    loadUsers();
+
+    // 时间管理
+    const timeModal = document.getElementById('timeModal');
+    const timeModalClose = document.getElementById('timeModalClose');
+    const timeModalCancel = document.getElementById('timeModalCancel');
+    const timeModalSave = document.getElementById('timeModalSave');
+    const rulesList = document.getElementById('rulesList');
+    const addRuleBtn = document.getElementById('addRuleBtn');
+    const modeButtons = document.querySelectorAll('.mode-selector button');
+
+    let currentMode = 'date';
+    let rules = [];
+
+    document.getElementById('timeMgmtBtn').addEventListener('click', async function() {
+        try {
+            const data = await apiFetch('/api/admin/chat_time_rules');
+            const normalized = (data || []).map(r => ({
+                id: r.id ?? r.Id ?? r.ID ?? null,
+                mode: r.mode ?? r.Mode,
+                day_of_week: r.day_of_week ?? r.DayOfWeek ?? null,
+                specific_date: r.specific_date ?? r.SpecificDate ?? null,
+                start_time: r.start_time ?? r.StartTime ?? '09:00',
+                end_time: r.end_time ?? r.EndTime ?? '17:00'
+            }));
+            if (normalized.length > 0) {
+                currentMode = normalized[0].mode;
+            } else {
+                currentMode = 'date';
+            }
+            modeButtons.forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.mode === currentMode);
+            });
+            rules = normalized;
+            if (rules.length === 0) {
+                addDefaultRule();
+            }
+            renderRules();
+            timeModal.classList.add('active');
+        } catch (e) {
+            alert('加载时间规则失败: ' + e.message);
+        }
+    });
+
+    function addDefaultRule() {
+        const defaultRule = {
+            id: null,
+            mode: currentMode,
+            day_of_week: currentMode === 'weekday' ? 1 : null,
+            specific_date: currentMode === 'date' ? new Date().toISOString().slice(0,10) : null,
+            start_time: '09:00',
+            end_time: '17:00'
+        };
+        rules.push(defaultRule);
+    }
+
+    function renderRules() {
+        if (rules.length === 0) {
+            rulesList.innerHTML = `<div class="empty-hint">暂无时间段，请添加</div>`;
+            return;
+        }
+        let html = '';
+        rules.forEach((rule, index) => {
+            const mode = currentMode;
+            let daySelectHtml = '';
+            if (mode === 'weekday') {
+                const weekdays = ['周一','周二','周三','周四','周五','周六','周日'];
+                daySelectHtml = `<select class="day-select" data-index="${index}">
+                ${weekdays.map((name, i) => `<option value="${i+1}" ${rule.day_of_week === i+1 ? 'selected' : ''}>${name}</option>`).join('')}
+            </select>`;
+            } else {
+                daySelectHtml = `<input type="date" class="date-input" data-index="${index}" value="${rule.specific_date || ''}">`;
+            }
+            html += `
+            <div class="rule-item" data-index="${index}">
+                ${daySelectHtml}
+                <span class="range-label">⏱</span>
+                <input type="time" class="time-input" data-index="${index}" data-type="start" value="${rule.start_time || '09:00'}">
+                <span class="range-label">至</span>
+                <input type="time" class="time-input" data-index="${index}" data-type="end" value="${rule.end_time || '17:00'}">
+                <button class="remove-btn" data-index="${index}" title="删除此时间段"><i class="fas fa-times-circle"></i></button>
+            </div>
+        `;
+        });
+        rulesList.innerHTML = html;
+
+        document.querySelectorAll('.rule-item .remove-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const idx = parseInt(this.dataset.index);
+                rules.splice(idx, 1);
+                if (rules.length === 0) {
+                    addDefaultRule();
+                }
+                renderRules();
+            });
+        });
+
+        document.querySelectorAll('.rule-item .day-select, .rule-item .date-input').forEach(el => {
+            el.addEventListener('change', function() {
+                const idx = parseInt(this.dataset.index);
+                if (currentMode === 'weekday') {
+                    rules[idx].day_of_week = parseInt(this.value);
+                } else {
+                    rules[idx].specific_date = this.value;
+                }
+            });
+        });
+        document.querySelectorAll('.rule-item .time-input').forEach(el => {
+            el.addEventListener('change', function() {
+                const idx = parseInt(this.dataset.index);
+                const type = this.dataset.type;
+                if (type === 'start') {
+                    rules[idx].start_time = this.value;
+                } else {
+                    rules[idx].end_time = this.value;
+                }
+            });
+        });
+    }
+
+    addRuleBtn.addEventListener('click', function() {
+        const newRule = {
+            id: null,
+            mode: currentMode,
+            day_of_week: currentMode === 'weekday' ? 1 : null,
+            specific_date: currentMode === 'date' ? new Date().toISOString().slice(0,10) : null,
+            start_time: '09:00',
+            end_time: '17:00'
+        };
+        rules.push(newRule);
+        renderRules();
+    });
+
+    modeButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            modeButtons.forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            const newMode = this.dataset.mode;
+            if (newMode !== currentMode) {
+                if (rules.length > 0 && !confirm('切换模式将清空当前所有时间段，确定吗？')) {
+                    modeButtons.forEach(b => b.classList.toggle('active', b.dataset.mode === currentMode));
+                    return;
+                }
+                currentMode = newMode;
+                rules = [];
+                addDefaultRule();
+                renderRules();
+            }
+        });
+    });
+
+    const timeModalClearAll = document.getElementById('timeModalClearAll');
+    timeModalClearAll.addEventListener('click', async function() {
+        const confirmed = await showConfirm('清空限制', '确定要清空所有时间段限制吗？清空后学生将不受时段限制，随时可以使用聊天室。');
+        if (!confirmed) return;
+        try {
+            await apiFetch('/api/admin/chat_time_rules', {
+                method: 'POST',
+                body: JSON.stringify({ mode: currentMode, rules: [] })
+            });
+            rules = [];
+            addDefaultRule();
+            renderRules();
+            alert('已清空所有时间段限制！');
+            closeOverlay(timeModal);
+        } catch (e) {
+            alert('清空失败: ' + e.message);
+        }
+    });
+
+    timeModalSave.addEventListener('click', async function() {
+        if (rules.length === 0) {
+            await showConfirm('提示', '至少添加一个时间段');
+            return;
+        }
+        for (let i = 0; i < rules.length; i++) {
+            const r = rules[i];
+            if (currentMode === 'weekday') {
+                if (!r.day_of_week) {
+                    await showConfirm('提示', `第 ${i+1} 条规则缺少星期几`);
+                    return;
+                }
+            } else {
+                if (!r.specific_date) {
+                    await showConfirm('提示', `第 ${i+1} 条规则缺少日期`);
+                    return;
+                }
+            }
+            if (!r.start_time || !r.end_time) {
+                await showConfirm('提示', `第 ${i+1} 条规则缺少时间`);
+                return;
+            }
+            if (r.start_time >= r.end_time) {
+                await showConfirm('提示', `第 ${i+1} 条规则开始时间必须早于结束时间`);
+                return;
+            }
+        }
+
+        const payload = {
+            mode: currentMode,
+            rules: rules.map(r => ({
+                id: r.id,
+                mode: currentMode,
+                day_of_week: r.day_of_week || null,
+                specific_date: r.specific_date || null,
+                start_time: r.start_time,
+                end_time: r.end_time
+            }))
+        };
+
+        try {
+            await apiFetch('/api/admin/chat_time_rules', {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+            alert('保存成功！');
+            closeOverlay(timeModal);
+        } catch (e) {
+            alert('保存失败: ' + e.message);
+        }
+    });
+
+    function closeTimeModal() {
+        closeOverlay(timeModal);
+    }
+    timeModalClose.addEventListener('click', closeTimeModal);
+    timeModalCancel.addEventListener('click', closeTimeModal);
+    timeModal.addEventListener('click', function(e) {
+        if (e.target === this) closeTimeModal();
+    });
+
+    confirmModal.addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeOverlay(confirmModal);
+        }
+    });
+</script>
+{{template "mobile_nav" .}}
+<div class="bottom-spacer"></div>
+</body>
+</html>
+{{end}}

@@ -1,0 +1,151 @@
+{{define "showcase"}}
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>优秀作文 - MYClassroom</title>
+    <script>
+        (function(){try{var t=localStorage.getItem('vc-theme');if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();
+    </script>
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css?v=202608322">
+    <link rel="stylesheet" href="/static/css/style.css?v=202608322">
+    <link rel="stylesheet" href="/static/css/dashboard.css?v=202608322">
+</head>
+<body class="app-body">
+<!-- 磨砂玻璃弹窗 -->
+<div class="glass-modal-overlay" id="glassModal">
+    <div class="glass-modal">
+        <div class="modal-icon"><i class="fas fa-info-circle"></i></div>
+        <h3 id="modalTitle">提示</h3>
+        <p id="modalMessage">消息内容</p>
+        <div class="modal-actions" id="modalActions"></div>
+    </div>
+</div>
+
+<div class="dashboard-container">
+    {{template "sidebar" .}}
+    <main class="main-content">
+        <header class="top-bar">
+            <div class="user-info">
+                <span class="page-name">优秀作文</span>
+                <span class="role-badge">{{if eq .Role "teacher"}}教师{{else}}学生{{end}}</span>
+            </div>
+            <div class="notice-inline">
+                <i class="fas fa-award"></i> 这里是老师精选的优秀作文：看看优秀同伴怎么写，对照 AI 批注图和名师点评学习提升。
+            </div>
+        </header>
+        <section class="content-panel">
+            <div class="showcase-grid" id="showcaseGrid">
+                <div class="empty-hint">加载中...</div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<!-- 详情弹窗 -->
+<div class="modal-overlay" id="detailModal">
+    <div class="modal-content essay-detail-modal">
+        <button class="close-btn" id="modalClose">&times;</button>
+        <div class="modal-title" id="detailTitle">优秀作文详情</div>
+        <div class="modal-body" id="detailBody"></div>
+    </div>
+</div>
+
+<script>
+    const TYPE_LABEL = { chinese: '语文作文', english: '应用文', continuation: '读后续写' };
+    let essays = [];
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text == null ? '' : String(text);
+        return div.innerHTML;
+    }
+
+    function showGlassModal(title, message) {
+        const overlay = document.getElementById('glassModal');
+        document.getElementById('modalTitle').textContent = title;
+        document.getElementById('modalMessage').textContent = message;
+        const actions = document.getElementById('modalActions');
+        actions.innerHTML = '';
+        const b = document.createElement('button');
+        b.textContent = '知道了';
+        b.className = 'btn-primary';
+        b.addEventListener('click', () => closeOverlay(overlay));
+        actions.appendChild(b);
+        overlay.classList.add('active');
+    }
+
+    async function load() {
+        try {
+            const resp = await fetch('/api/essay/excellent');
+            essays = await resp.json();
+            render();
+        } catch (e) {
+            showGlassModal('加载失败', '无法获取优秀作文，请刷新重试');
+        }
+    }
+
+    function render() {
+        const grid = document.getElementById('showcaseGrid');
+        if (!essays.length) {
+            grid.innerHTML = '<div class="empty-hint">暂无优秀作文。老师会在「批阅流水线」中把写得好的作文标记为优秀，届时会出现在这里。</div>';
+            return;
+        }
+        let html = '';
+        essays.forEach(j => {
+            const name = j.student_name || j.username || '同学';
+            const score = (j.score_text && j.score_text !== '--') ? `${j.score_text}<small>/${j.max_score}</small>` : '';
+            const comment = (j.teacher_comment || '').length > 80 ? j.teacher_comment.substring(0, 80) + '……' : (j.teacher_comment || '老师点评整理中…');
+            const thumb = j.annotated_path
+                ? `<img src="/api/essay/jobs/${j.id}/annotated" alt="批注图" loading="lazy">`
+                : (j.image_path ? `<img src="/api/essay/jobs/${j.id}/image" alt="作文原图" loading="lazy">` : '');
+            html += `
+                <div class="showcase-card" data-id="${j.id}">
+                    ${thumb ? `<div class="showcase-thumb">${thumb}</div>` : ''}
+                    <div class="showcase-card-body">
+                        <div class="showcase-card-title"><i class="fas fa-star"></i> ${escapeHtml(name)} · ${TYPE_LABEL[j.type] || '作文'}</div>
+                        <div class="showcase-card-meta"><span class="job-score">${score}</span><span class="showcase-title-text">${escapeHtml(j.title || '')}</span></div>
+                        <div class="showcase-card-comment">${escapeHtml(comment)}</div>
+                    </div>
+                </div>`;
+        });
+        grid.innerHTML = html;
+        grid.querySelectorAll('.showcase-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const j = essays.find(x => x.id === parseInt(card.dataset.id));
+                if (j) openDetail(j);
+            });
+        });
+    }
+
+    function openDetail(j) {
+        const name = j.student_name || j.username || '同学';
+        document.getElementById('detailTitle').textContent = `${name} · ${TYPE_LABEL[j.type] || '作文'}`;
+        const annotated = j.annotated_path
+            ? `<div class="essay-detail-pane annotated-pane"><div class="pane-title"><i class="fas fa-highlighter"></i> AI 批注图（红=错误 绿=好句 橙=可提升）</div><div class="pane-body"><img src="/api/essay/jobs/${j.id}/annotated" alt="批注图"></div></div>`
+            : '';
+        const original = j.image_path
+            ? `<div class="essay-detail-pane image-pane"><div class="pane-title"><i class="fas fa-image"></i> 作文原图</div><div class="pane-body"><img src="/api/essay/jobs/${j.id}/image" alt="原图"></div></div>`
+            : '';
+        document.getElementById('detailBody').innerHTML = `
+            <div class="detail-comment-box in-modal">
+                <div class="pane-title"><i class="fas fa-award"></i> 名师点评</div>
+                <div class="comment-text">${escapeHtml(j.teacher_comment || '老师点评整理中…')}</div>
+            </div>
+            <div class="essay-detail-grid">${original}${annotated}</div>
+            <div class="showcase-fulltext"><div class="pane-title"><i class="fas fa-font"></i> 作文原文（识别结果）</div><div class="pane-body">${escapeHtml(j.content || '暂无')}</div></div>
+            <div class="showcase-fulltext"><div class="pane-title"><i class="fas fa-check-circle"></i> 批改详情</div><div class="pane-body">${escapeHtml(j.feedback || '暂无')}</div></div>`;
+        document.getElementById('detailModal').classList.add('active');
+    }
+    document.getElementById('modalClose').addEventListener('click', () => closeOverlay(document.getElementById('detailModal')));
+    document.getElementById('detailModal').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) closeOverlay(e.currentTarget);
+    });
+
+    load();
+</script>
+{{template "mobile_nav" .}}
+<div class="bottom-spacer"></div>
+</body>
+</html>
+{{end}}

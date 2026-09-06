@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>MYClassroom · 我的课堂 - 登录</title>
+    <link rel="stylesheet" href="/static/css/style.css?v=202608322">
+    <style>
+        /* 登录页随系统外观（亮/暗）自动切换，无需额外脚本 */
+        .reg-link { color: var(--tint); font-weight: 500; text-decoration: none; }
+        .reg-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body class="login-body">
+
+<!-- Toast 容器 -->
+<div id="toast" class="toast"></div>
+
+<!-- 局域网访问地址（学生端入口，实时更新） -->
+<div class="lan-card" id="lanBanner">
+    <div class="lan-icon" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+            <circle cx="12" cy="20" r="1" fill="currentColor" stroke="none"></circle>
+            <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+        </svg>
+    </div>
+    <div class="lan-body">
+        <div class="lan-title">本机局域网访问地址（随 IP 变化）</div>
+        <div class="lan-ip-value" id="lanIpValue">https://{{.LANIP}}:{{.LANPort}}</div>
+        <div class="lan-hint">学生端在浏览器地址栏输入以上地址访问，开头的 https:// 不能省略</div>
+    </div>
+</div>
+
+<!-- 登录卡片 -->
+<div class="login-card">
+    <h1>欢迎回来</h1>
+    <p class="login-sub">登录 MYClassroom 教室服务站，开始今天的课堂</p>
+    <form class="login-form" action="/login" method="post">
+        <div class="float-field">
+            <input type="text" id="username" name="username" placeholder=" " required autofocus
+                   autocomplete="username" aria-label="账号">
+            <label for="username">账号</label>
+        </div>
+        <div class="float-field">
+            <input type="password" id="password" name="password" placeholder=" " required
+                   autocomplete="current-password" aria-label="密码">
+            <label for="password">密码</label>
+        </div>
+        <button type="submit" class="btn btn-filled btn-block">登录</button>
+    </form>
+    <p class="login-hint">
+        首次使用请联系管理员获取账号，或注册新账号<br>
+        没有账号？<a class="reg-link" href="/register">注册新账号</a>（教师需支付宝实名认证）
+    </p>
+</div>
+
+<p class="login-footer">MYClassroom · 我的课堂</p>
+
+<script>
+    // 登录错误提示（顶部 Toast，3 秒自动消失）
+    (function() {
+        const errorMsg = "{{.Error}}";
+        const toast = document.getElementById('toast');
+        if (errorMsg && errorMsg.trim() !== '') {
+            toast.textContent = errorMsg;
+            toast.classList.add('error', 'show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+                toast.classList.add('hide');
+            }, 3000);
+        }
+    })();
+
+    // 局域网地址：优先 SSE 实时推送，降级轮询
+    (function() {
+        var ipValueEl = document.getElementById('lanIpValue');
+        if (!ipValueEl) return;
+
+        if (window.EventSource) {
+            var es = new EventSource('/api/lan-info/stream');
+            es.onmessage = function(event) {
+                var parts = event.data.split(':');
+                if (parts.length === 2) {
+                    ipValueEl.textContent = 'https://' + parts[0] + ':' + parts[1];
+                }
+            };
+            es.onerror = function() {
+                es.close();
+                startPolling();
+            };
+        } else {
+            startPolling();
+        }
+
+        function startPolling() {
+            function updateLanInfo() {
+                fetch('/api/lan-info')
+                    .then(function(res) { return res.json(); })
+                    .then(function(data) {
+                        if (data.ip) {
+                            ipValueEl.textContent = 'https://' + data.ip + ':' + data.port;
+                        } else {
+                            ipValueEl.textContent = '（未获取到IP）';
+                        }
+                    })
+                    .catch(function() {});
+            }
+            updateLanInfo();
+            setInterval(updateLanInfo, 5000);
+        }
+    })();
+</script>
+</body>
+</html>

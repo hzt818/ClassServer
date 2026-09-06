@@ -1,0 +1,1277 @@
+{{define "sidebar"}}
+<style>
+    .sidebar .chat-mention-badge {
+        position: absolute; top: -5px; right: -7px; min-width: 17px; height: 17px;
+        padding: 0 4px; border-radius: 999px; background: var(--red); color: #fff;
+        font-size: 10px; font-weight: 700; line-height: 17px; text-align: center;
+        box-shadow: 0 0 0 2px var(--bg); display: none;
+    }
+    .sidebar .chat-mention-badge.show { display: block; }
+
+    /* 外观切换按钮（跟随系统 / 浅色 / 深色） */
+    .theme-toggle-btn {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 30px; height: 30px; border-radius: 50%;
+        background: var(--bg-fill); color: var(--label-2);
+        font-size: 13px; border: none; cursor: pointer;
+        transition: background-color .2s var(--ease), color .2s var(--ease), transform .15s var(--ease-spring);
+    }
+    .theme-toggle-btn:hover { background: var(--bg-fill-strong); color: var(--label); }
+    .theme-toggle-btn:active { transform: scale(0.9); }
+
+    /* 身份块：当前登录用户头像 + 姓名（竖排常驻，与导航项同构） */
+    .sidebar-brand {
+        display: flex; flex-direction: column; align-items: center;
+        padding: 2px 8px 12px;
+        margin: 0 8px 6px;
+        border-bottom: 1px solid var(--separator);
+        text-align: center;
+    }
+    .sidebar-brand .brand-avatar {
+        width: 34px; height: 34px;
+        border-radius: 50%;
+        object-fit: cover;
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 0 0 2px var(--bg), 0 4px 12px rgba(74, 60, 42, 0.18);
+    }
+    .sidebar-brand img.brand-avatar { border: none; }
+    .sidebar-brand .brand-avatar-fallback {
+        background: linear-gradient(160deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.05) 50%), var(--tint);
+        color: #fdf9f6;
+        font-family: var(--font-serif);
+        font-weight: 600; font-size: 15px;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 0 0 2px var(--bg), 0 4px 12px rgba(201, 100, 66, 0.28);
+        user-select: none;
+    }
+    .sidebar-brand .text {
+        margin-top: 6px;
+        max-width: 100%;
+        font-family: var(--font-serif);
+        font-size: 11px; font-weight: 600; color: var(--label);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+</style>
+<nav class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+        {{if .Avatar}}
+        <img class="brand-avatar" src="{{.Avatar}}" alt="头像">
+        {{else}}
+        <span class="brand-avatar brand-avatar-fallback">{{.Initial}}</span>
+        {{end}}
+        <span class="text">{{.FullName}}</span>
+    </div>
+    <ul>
+        <li class="{{if eq .Active "home"}}active{{end}}">
+        <a href="/dashboard">
+            <span class="icon"><i class="fas fa-house"></i></span>
+            <span class="text">主页</span>
+        </a>
+        </li>
+        <li class="{{if eq .Active "chat"}}active{{end}}" id="chatMenuItem">
+        <a href="/chat" style="position: relative; display: flex; align-items: center;">
+                <span class="icon" style="position: relative;">
+                    <i class="fas fa-comment-dots"></i>
+                    <span class="chat-mention-badge" id="sidebarChatMentionBadge"></span>
+                </span>
+            <span class="text">聊天室</span>
+        </a>
+        </li>
+        <li class="{{if eq .Active "essay"}}active{{end}}">
+        <a href="/essay">
+            <span class="icon"><i class="fas fa-pen-fancy"></i></span>
+            <span class="text">作文批改</span>
+        </a>
+        </li>
+        {{if eq .Role "teacher"}}
+        <li class="{{if eq .Active "pipeline"}}active{{end}}">
+        <a href="/pipeline">
+            <span class="icon"><i class="fas fa-bars-progress"></i></span>
+            <span class="text">批阅流水线</span>
+        </a>
+        </li>
+        {{end}}
+        <li class="{{if eq .Active "showcase"}}active{{end}}">
+        <a href="/showcase">
+            <span class="icon"><i class="fas fa-award"></i></span>
+            <span class="text">优秀作文</span>
+        </a>
+        </li>
+        <li class="{{if eq .Active "cast"}}active{{end}}">
+        <a href="/cast">
+            <span class="icon"><i class="fas fa-desktop"></i></span>
+            <span class="text">课堂传屏</span>
+        </a>
+        </li>
+        {{if eq .Role "teacher"}}
+        <li class="{{if eq .Active "admin_users"}}active{{end}}">
+        <a href="/admin/users">
+            <span class="icon"><i class="fas fa-users-gear"></i></span>
+            <span class="text">账号管理</span>
+        </a>
+        </li>
+        {{end}}
+        <li class="{{if eq .Active "about"}}active{{end}}">
+            <a href="/about">
+                <span class="icon"><i class="fas fa-circle-info"></i></span>
+                <span class="text">关于作者</span>
+            </a>
+        </li>
+        <li>
+            <a href="javascript:void(0)" id="themeToggleItem" role="button" aria-label="切换外观（跟随系统/浅色/深色）">
+                <span class="icon"><i class="fas fa-circle-half-stroke" id="themeToggleIcon"></i></span>
+                <span class="text">外观</span>
+            </a>
+        </li>
+        <li style="margin-top: auto;">
+            <a href="/logout">
+                <span class="icon"><i class="fas fa-right-from-bracket"></i></span>
+                <span class="text">退出</span>
+            </a>
+        </li>
+    </ul>
+</nav>
+
+<!-- 语音通话：提示条 -->
+<div id="voiceToastBanner">
+    <span class="banner-text" id="voiceToastText"></span>
+    <button class="banner-close" id="voiceToastClose" aria-label="关闭提示"><i class="fas fa-xmark"></i></button>
+</div>
+
+<!-- 语音通话：全屏窗中窗 -->
+<div class="voice-overlay" id="voiceOverlay">
+    <div class="voice-overlay-header">
+        <button class="voice-icon-btn" id="voiceMinimizeBtn" aria-label="缩小通话窗口"><i class="fas fa-down-left-and-up-right-to-center"></i></button>
+        <div class="voice-overlay-title"><i class="fas fa-headset"></i> <span id="voiceRoomTitle">语音聊天</span></div>
+        <button class="voice-icon-btn voice-hangup-top" id="voiceCloseBtn" aria-label="挂断通话"><i class="fas fa-phone-slash"></i></button>
+    </div>
+    <div class="voice-tiles" id="voiceTiles"></div>
+    <div class="voice-controls">
+        <button class="voice-ctrl-btn" id="voiceMicBtn" data-device="mic" aria-label="麦克风开关"><i class="fas fa-microphone"></i></button>
+        <button class="voice-ctrl-btn" id="voiceCamBtn" data-device="cam" aria-label="摄像头开关"><i class="fas fa-video"></i></button>
+        <button class="voice-ctrl-btn" id="voiceSpeakerBtn" data-device="speaker" aria-label="扬声器开关"><i class="fas fa-volume-high"></i></button>
+        <button class="voice-ctrl-btn voice-hangup" id="voiceHangupBtn" aria-label="挂断通话"><i class="fas fa-phone-slash"></i></button>
+    </div>
+</div>
+
+<!-- 语音通话：缩小后的可拖动悬浮胶囊 -->
+<div class="voice-mini-pill" id="voiceMiniPill">
+    <i class="fas fa-headset"></i>
+    <span id="voicePillText">语音聊天中</span>
+    <button id="voiceMicToggleBtn" aria-label="麦克风开关"><i class="fas fa-microphone"></i></button>
+    <button id="voiceExpandBtn" aria-label="展开通话窗口"><i class="fas fa-up-right-and-down-left-from-center"></i></button>
+</div>
+
+<script src="/static/js/draggable-pill.js?v=202608322"></script>
+<script>
+    (function() {
+        const STATE_KEY = 'voiceCallState'; // { roomId, roomName }
+        const DEVICE_DEFAULTS_KEY = 'voiceDeviceDefaults';
+
+        function escapeHtmlLocal(text) {
+            if (!text) return '';
+            return String(text).replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
+        }
+
+        let toastTimer = null;
+        const toastEl = document.getElementById('voiceToastBanner');
+        const toastTextEl = document.getElementById('voiceToastText');
+        function showVoiceToast(message) {
+            toastTextEl.textContent = message;
+            toastEl.classList.add('show');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2500);
+        }
+        document.getElementById('voiceToastClose').addEventListener('click', (e) => {
+            e.stopPropagation();
+            toastEl.classList.remove('show');
+            clearTimeout(toastTimer);
+        });
+
+        async function apiFetch(url, opts = {}) {
+            const resp = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({ error: '请求失败' }));
+                throw new Error(err.error || '请求失败');
+            }
+            return resp.json();
+        }
+
+        function getDeviceDefaults() {
+            try {
+                const raw = localStorage.getItem(DEVICE_DEFAULTS_KEY);
+                if (raw) return Object.assign({ mic: true, cam: false, speaker: true }, JSON.parse(raw));
+            } catch (e) {}
+            return { mic: true, cam: false, speaker: true };
+        }
+        function updateDeviceBtnIcon(btn, device, on) {
+            if (!btn) return;
+            const icon = btn.querySelector('i');
+            btn.classList.toggle('off', !on);
+            if (!icon) return;
+            if (device === 'mic') icon.className = on ? 'fas fa-microphone' : 'fas fa-microphone-slash';
+            else if (device === 'cam') icon.className = on ? 'fas fa-video' : 'fas fa-video-slash';
+            else if (device === 'speaker') icon.className = on ? 'fas fa-volume-high' : 'fas fa-volume-xmark';
+        }
+
+        function saveCallState(roomId, roomName) {
+            try { localStorage.setItem(STATE_KEY, JSON.stringify({ roomId, roomName })); } catch (e) {}
+        }
+        function clearCallState() {
+            try { localStorage.removeItem(STATE_KEY); } catch (e) {}
+        }
+        function loadCallState() {
+            try {
+                const raw = localStorage.getItem(STATE_KEY);
+                return raw ? JSON.parse(raw) : null;
+            } catch (e) { return null; }
+        }
+
+        let currentUserID = null;
+        async function ensureCurrentUser() {
+            if (currentUserID !== null) return currentUserID;
+            const me = await apiFetch('/api/me');
+            currentUserID = me.user_id;
+            return currentUserID;
+        }
+
+        const voiceState = {
+            active: false, minimized: false, roomId: null, roomName: '',
+            localStream: null, peers: {},
+            mic: true, cam: false, speaker: true,
+            micAvailable: true, camAvailable: true,
+            abortController: null, heartbeatTimer: null,
+        };
+
+        function voiceInitial(name) { return (name || '?').trim().charAt(0).toUpperCase() || '?'; }
+
+        function getOrCreateTile(peerId, info) {
+            let tile = document.getElementById('voiceTile-' + peerId);
+            if (tile) return tile;
+            tile = document.createElement('div');
+            tile.className = 'voice-tile no-video';
+            tile.id = 'voiceTile-' + peerId;
+            const name = (peerId === 'local') ? '我' : (info && (info.full_name || info.username)) || '用户';
+            tile.innerHTML = `
+            <video autoplay playsinline ${peerId === 'local' ? 'muted' : ''}></video>
+            <div class="voice-tile-avatar">${escapeHtmlLocal(voiceInitial(name))}</div>
+            <div class="voice-tile-name"><i class="fas fa-microphone"></i> <span>${escapeHtmlLocal(name)}</span></div>
+        `;
+            document.getElementById('voiceTiles').appendChild(tile);
+            return tile;
+        }
+        function setTileStream(peerId, stream) {
+            const tile = document.getElementById('voiceTile-' + peerId);
+            if (!tile) return;
+            const video = tile.querySelector('video');
+            video.srcObject = stream;
+            if (peerId !== 'local') video.muted = !voiceState.speaker;
+        }
+        function updateTileMicIcon(peerId, micOn) {
+            const tile = document.getElementById('voiceTile-' + peerId);
+            const icon = tile && tile.querySelector('.voice-tile-name i');
+            if (icon) icon.className = micOn ? 'fas fa-microphone' : 'fas fa-microphone-slash';
+        }
+        function updateTileCamState(peerId, camOn) {
+            const tile = document.getElementById('voiceTile-' + peerId);
+            if (tile) tile.classList.toggle('no-video', !camOn);
+        }
+        function removeTile(peerId) {
+            const tile = document.getElementById('voiceTile-' + peerId);
+            if (tile) tile.remove();
+        }
+
+        async function sendVoiceSignal(to, signalType, payload) {
+            try {
+                await apiFetch(`/api/voice/${voiceState.roomId}/signal`, {
+                    method: 'POST', body: JSON.stringify({ to, signal_type: signalType, payload }),
+                });
+            } catch (e) { console.error('信令发送失败:', e); }
+        }
+
+        function createPeerConnection(peerId, info) {
+            const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+            if (voiceState.localStream) {
+                voiceState.localStream.getTracks().forEach(t => pc.addTrack(t, voiceState.localStream));
+            }
+            pc.onicecandidate = (e) => { if (e.candidate) sendVoiceSignal(peerId, 'ice', e.candidate.toJSON()); };
+            pc.ontrack = (e) => {
+                getOrCreateTile(peerId, info);
+                setTileStream(peerId, e.streams[0]);
+                updateTileCamState(peerId, info ? info.cam : true);
+            };
+            voiceState.peers[peerId] = {
+                pc,
+                info: info || { user_id: peerId, username: '用户' + peerId, full_name: '用户' + peerId, mic: true, cam: false },
+            };
+            getOrCreateTile(peerId, voiceState.peers[peerId].info);
+            updateTileMicIcon(peerId, voiceState.peers[peerId].info.mic !== false);
+            updateTileCamState(peerId, !!voiceState.peers[peerId].info.cam);
+            return pc;
+        }
+
+        async function initiateOfferTo(peerId, info) {
+            if (voiceState.peers[peerId]) return;
+            const pc = createPeerConnection(peerId, info);
+            try {
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                sendVoiceSignal(peerId, 'offer', { sdp: pc.localDescription.sdp, type: pc.localDescription.type });
+            } catch (e) { console.error('创建 offer 失败:', e); }
+        }
+
+        async function handleVoiceSignalEvent(evt) {
+            const from = evt.from, type = evt.signal_type, payload = evt.payload;
+            let peer = voiceState.peers[from];
+            if (!peer && type === 'offer') { createPeerConnection(from, null); peer = voiceState.peers[from]; }
+            if (!peer) return;
+            const pc = peer.pc;
+            try {
+                if (type === 'offer') {
+                    await pc.setRemoteDescription(new RTCSessionDescription(payload));
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+                    sendVoiceSignal(from, 'answer', { sdp: pc.localDescription.sdp, type: pc.localDescription.type });
+                } else if (type === 'answer') {
+                    await pc.setRemoteDescription(new RTCSessionDescription(payload));
+                } else if (type === 'ice') {
+                    try { await pc.addIceCandidate(payload); } catch (e) {}
+                }
+            } catch (e) { console.error('处理语音信令失败:', e); }
+        }
+
+        function updatePillText() {
+            const count = Object.keys(voiceState.peers).length + 1;
+            document.getElementById('voicePillText').textContent = `${voiceState.roomName || '语音聊天'} · ${count}人`;
+        }
+
+        function handleVoiceEvent(evt) {
+            if (!voiceState.active) return;
+            switch (evt.type) {
+                case 'init':
+                    (evt.participants || []).forEach(p => {
+                        if (voiceState.peers[p.user_id]) return;
+                        getOrCreateTile(p.user_id, p);
+                        if (currentUserID < p.user_id) initiateOfferTo(p.user_id, p);
+                    });
+                    updatePillText();
+                    break;
+                case 'peer-joined': {
+                    const u = evt.user;
+                    if (!u || voiceState.peers[u.user_id]) return;
+                    getOrCreateTile(u.user_id, u);
+                    if (currentUserID < u.user_id) initiateOfferTo(u.user_id, u);
+                    updatePillText();
+                    break;
+                }
+                case 'peer-left': {
+                    const peer = voiceState.peers[evt.user_id];
+                    if (peer && peer.pc) peer.pc.close();
+                    delete voiceState.peers[evt.user_id];
+                    removeTile(evt.user_id);
+                    updatePillText();
+                    break;
+                }
+                case 'peer-state': {
+                    const peer = voiceState.peers[evt.user_id];
+                    if (peer) { peer.info.mic = evt.mic; peer.info.cam = evt.cam; }
+                    updateTileMicIcon(evt.user_id, evt.mic);
+                    updateTileCamState(evt.user_id, evt.cam);
+                    break;
+                }
+                case 'signal': handleVoiceSignalEvent(evt); break;
+                case 'call-ended': closeVoiceCall(false); break;
+            }
+        }
+
+        async function openVoiceStream(roomId) {
+            voiceState.abortController = new AbortController();
+            try {
+                const resp = await fetch(`/api/voice/${roomId}/stream`, { signal: voiceState.abortController.signal });
+                if (!resp.ok || !resp.body) return;
+                const reader = resp.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    let idx;
+                    while ((idx = buffer.indexOf('\n')) !== -1) {
+                        const line = buffer.slice(0, idx).trim();
+                        buffer = buffer.slice(idx + 1);
+                        if (line) { try { handleVoiceEvent(JSON.parse(line)); } catch (e) {} }
+                    }
+                }
+            } catch (e) {
+                if (e.name !== 'AbortError') console.error('语音信令通道断开:', e);
+            }
+        }
+
+        async function acquireVoiceMedia(wantCam) {
+            let stream = null, micAvailable = true, camAvailable = true, toastMsg = '';
+            if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                return { stream: null, micAvailable: false, camAvailable: false, toastMsg: '当前页面不是安全连接，已以旁听模式加入语音聊天室' };
+            }
+            let firstErrName = '';
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: wantCam });
+                camAvailable = wantCam;
+            } catch (e1) {
+                firstErrName = e1 && e1.name;
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    camAvailable = false;
+                    if (wantCam) toastMsg = '未检测到摄像头或未授权，已使用纯语音模式加入';
+                } catch (e2) {
+                    micAvailable = false; camAvailable = false;
+                    toastMsg = describeMediaError(firstErrName);
+                }
+            }
+            return { stream, micAvailable, camAvailable, toastMsg };
+        }
+        function describeMediaError(errName) {
+            if (errName === 'NotAllowedError') return '麦克风/摄像头权限已被拒绝，已以旁听模式加入语音聊天室';
+            if (errName === 'NotFoundError') return '未检测到麦克风/摄像头设备，已以旁听模式加入语音聊天室';
+            return '未能获取麦克风/摄像头，已以旁听模式加入语音聊天室';
+        }
+
+        function updateVoiceAvailabilityUI() {
+            const micBtn = document.getElementById('voiceMicBtn');
+            const camBtn = document.getElementById('voiceCamBtn');
+            if (micBtn) { micBtn.disabled = !voiceState.micAvailable; }
+            if (camBtn) { camBtn.disabled = !voiceState.camAvailable; }
+        }
+
+        function startHeartbeat() {
+            stopHeartbeat();
+            voiceState.heartbeatTimer = setInterval(() => {
+                if (voiceState.active && voiceState.roomId) {
+                    apiFetch(`/api/voice/${voiceState.roomId}/heartbeat`, { method: 'POST', body: '{}' }).catch(() => {});
+                }
+            }, 20000);
+        }
+        function stopHeartbeat() {
+            if (voiceState.heartbeatTimer) { clearInterval(voiceState.heartbeatTimer); voiceState.heartbeatTimer = null; }
+        }
+
+        // silent=true 表示这是"刚跳转到新页面，接续之前通话"，不重复发起邀请、不弹提示
+        async function startVoiceCall(roomId, roomName, silent) {
+            if (voiceState.active) {
+                if (voiceState.roomId === roomId) { showVoiceOverlay(); return; }
+                showVoiceToast('请先挂断当前语音通话');
+                return;
+            }
+            if (!roomId) return;
+            await ensureCurrentUser();
+
+            const defaults = getDeviceDefaults();
+            const media = await acquireVoiceMedia(defaults.cam);
+            voiceState.localStream = media.stream;
+            voiceState.micAvailable = media.micAvailable;
+            voiceState.camAvailable = media.camAvailable;
+            voiceState.mic = defaults.mic && media.micAvailable;
+            voiceState.cam = defaults.cam && media.camAvailable;
+            voiceState.speaker = defaults.speaker;
+            if (media.toastMsg && !silent) showVoiceToast(media.toastMsg);
+
+            if (voiceState.localStream) {
+                voiceState.localStream.getAudioTracks().forEach(t => t.enabled = voiceState.mic);
+                voiceState.localStream.getVideoTracks().forEach(t => t.enabled = voiceState.cam);
+            }
+
+            voiceState.roomId = roomId;
+            voiceState.roomName = roomName || '';
+            voiceState.active = true;
+            voiceState.peers = {};
+            saveCallState(roomId, voiceState.roomName);
+
+            document.getElementById('voiceTiles').innerHTML = '';
+            getOrCreateTile('local', { full_name: '我' });
+            if (voiceState.localStream) setTileStream('local', voiceState.localStream);
+            updateTileCamState('local', voiceState.cam);
+            updateTileMicIcon('local', voiceState.mic);
+            updateVoiceControlIcons();
+            updateVoiceAvailabilityUI();
+
+            try {
+                await apiFetch(`/api/voice/${roomId}/invite`, { method: 'POST', body: JSON.stringify({}) }); // 已有通话时该接口本身是幂等的
+                await apiFetch(`/api/voice/${roomId}/join`, { method: 'POST', body: JSON.stringify({ mic: voiceState.mic, cam: voiceState.cam }) });
+            } catch (e) {
+                showVoiceToast('加入语音通话失败: ' + e.message);
+                closeVoiceCall(true);
+                return;
+            }
+
+            openVoiceStream(roomId);
+            startHeartbeat();
+            if (silent) minimizeVoiceOverlay(); else showVoiceOverlay();
+        }
+
+        function showVoiceOverlay() {
+            voiceState.minimized = false;
+            document.getElementById('voiceOverlay').classList.add('active');
+            document.getElementById('voiceMiniPill').classList.remove('active');
+            document.getElementById('voiceRoomTitle').textContent = '语音聊天 - ' + (voiceState.roomName || '');
+        }
+        function minimizeVoiceOverlay() {
+            voiceState.minimized = true;
+            document.getElementById('voiceOverlay').classList.remove('active');
+            document.getElementById('voiceMiniPill').classList.add('active');
+            updatePillText();
+        }
+        function updateVoiceControlIcons() {
+            updateDeviceBtnIcon(document.getElementById('voiceMicBtn'), 'mic', voiceState.mic);
+            updateDeviceBtnIcon(document.getElementById('voiceCamBtn'), 'cam', voiceState.cam);
+            updateDeviceBtnIcon(document.getElementById('voiceSpeakerBtn'), 'speaker', voiceState.speaker);
+            updateDeviceBtnIcon(document.getElementById('voiceMicToggleBtn'), 'mic', voiceState.mic);
+        }
+
+        async function toggleVoiceDevice(device) {
+            if (!voiceState.active) return;
+            if (device === 'mic') {
+                if (!voiceState.micAvailable) { showVoiceToast('未检测到可用麦克风或未授权'); return; }
+                voiceState.mic = !voiceState.mic;
+                if (voiceState.localStream) voiceState.localStream.getAudioTracks().forEach(t => t.enabled = voiceState.mic);
+                updateTileMicIcon('local', voiceState.mic);
+            } else if (device === 'cam') {
+                if (!voiceState.camAvailable) { showVoiceToast('未检测到可用摄像头或未授权'); return; }
+                voiceState.cam = !voiceState.cam;
+                if (voiceState.localStream) voiceState.localStream.getVideoTracks().forEach(t => t.enabled = voiceState.cam);
+                updateTileCamState('local', voiceState.cam);
+            } else if (device === 'speaker') {
+                voiceState.speaker = !voiceState.speaker;
+                Object.keys(voiceState.peers).forEach(peerId => {
+                    const tile = document.getElementById('voiceTile-' + peerId);
+                    if (tile) tile.querySelector('video').muted = !voiceState.speaker;
+                });
+            }
+            updateVoiceControlIcons();
+            if (device === 'mic' || device === 'cam') {
+                try {
+                    await apiFetch(`/api/voice/${voiceState.roomId}/state`, {
+                        method: 'POST', body: JSON.stringify({ mic: voiceState.mic, cam: voiceState.cam }),
+                    });
+                } catch (e) {}
+            }
+        }
+
+        async function closeVoiceCall(notifyServer) {
+            const roomId = voiceState.roomId;
+            stopHeartbeat();
+            if (voiceState.abortController) voiceState.abortController.abort();
+            Object.values(voiceState.peers).forEach(p => { if (p && p.pc) p.pc.close(); });
+            if (voiceState.localStream) voiceState.localStream.getTracks().forEach(t => t.stop());
+            if (notifyServer && roomId) {
+                try { await apiFetch(`/api/voice/${roomId}/leave`, { method: 'POST', body: JSON.stringify({}) }); } catch (e) {}
+            }
+            voiceState.active = false;
+            voiceState.minimized = false;
+            voiceState.roomId = null;
+            voiceState.localStream = null;
+            voiceState.micAvailable = true;
+            voiceState.camAvailable = true;
+            voiceState.peers = {};
+            clearCallState();
+            document.getElementById('voiceTiles').innerHTML = '';
+            document.getElementById('voiceOverlay').classList.remove('active');
+            document.getElementById('voiceMiniPill').classList.remove('active');
+        }
+
+        document.getElementById('voiceMinimizeBtn').addEventListener('click', minimizeVoiceOverlay);
+        document.getElementById('voiceExpandBtn').addEventListener('click', () => { if (!pillDrag.wasMoved()) showVoiceOverlay(); });
+        document.getElementById('voiceMicBtn').addEventListener('click', () => toggleVoiceDevice('mic'));
+        document.getElementById('voiceCamBtn').addEventListener('click', () => toggleVoiceDevice('cam'));
+        document.getElementById('voiceSpeakerBtn').addEventListener('click', () => toggleVoiceDevice('speaker'));
+        document.getElementById('voiceMicToggleBtn').addEventListener('click', () => toggleVoiceDevice('mic'));
+        document.getElementById('voiceHangupBtn').addEventListener('click', () => closeVoiceCall(true));
+        document.getElementById('voiceCloseBtn').addEventListener('click', () => closeVoiceCall(true));
+
+        // 关键：跳转到站内其它页面时【不】调用 /leave —— 只在真正关闭标签页/浏览器时，
+        // 心跳超时（服务器端 60 秒无心跳）会兜底清理，避免这里错误挂断正常的页面跳转。
+        // 这里只需要在真正卸载前把本地资源（麦克风等）释放掉，减少不必要的占用。
+        window.addEventListener('pagehide', () => {
+            if (voiceState.abortController) voiceState.abortController.abort();
+        });
+
+        const pillDrag = makeDraggablePill(document.getElementById('voiceMiniPill'), 'voiceMiniPillPos');
+
+        // 暴露给各页面的"发起/加入通话"入口
+        window.VoiceCall = {
+            start: (roomId, roomName) => startVoiceCall(roomId, roomName, false),
+            hangup: () => closeVoiceCall(true),
+            isActiveIn: (roomId) => voiceState.active && voiceState.roomId === roomId,
+        };
+
+        // 页面刚加载：如果之前有通话且没有主动挂断，自动无感重连
+        (function autoRejoin() {
+            const saved = loadCallState();
+            if (saved && saved.roomId) {
+                startVoiceCall(saved.roomId, saved.roomName, true).catch(() => clearCallState());
+            }
+        })();
+    })();
+</script>
+
+{{if ne .Active "chat"}}
+<div id="globalMentionBanner">
+    <i class="fas fa-at"></i>
+    <span class="banner-text" id="globalMentionBannerText"></span>
+    <button class="banner-close" id="globalMentionBannerClose" aria-label="关闭提醒"><i class="fas fa-xmark"></i></button>
+</div>
+{{end}}
+
+<script>
+    (function() {
+        const badge = document.getElementById('sidebarChatMentionBadge');
+        const banner = document.getElementById('globalMentionBanner');
+        const bannerText = document.getElementById('globalMentionBannerText');
+        const bannerCloseBtn = document.getElementById('globalMentionBannerClose');
+        const shownIds = new Set();
+        let bannerTimer = null;
+
+        if (bannerCloseBtn) {
+            bannerCloseBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                banner.classList.remove('show');
+                clearTimeout(bannerTimer);
+            });
+        }
+
+        function showBanner(mention) {
+            if (!banner) return;
+            const roomLabel = mention.room_name ? `「${mention.room_name}」· ` : '';
+            bannerText.textContent = `${roomLabel}${mention.mentioner_username} 提到了你：${mention.content_snippet || ''}`;
+            banner.classList.add('show');
+            banner.onclick = function() {
+                banner.classList.remove('show');
+                clearTimeout(bannerTimer);
+                fetch('/api/mentions/seen', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mention_ids: [mention.id] })
+                }).catch(() => {});
+                window.location.href = `/chat?jump_room=${mention.room_id}&jump_msg=${mention.message_id}`;
+            };
+            clearTimeout(bannerTimer);
+            bannerTimer = setTimeout(() => banner.classList.remove('show'), 6000);
+        }
+
+        async function pollMentionBadge() {
+            try {
+                const res = await fetch('/api/mentions/pending');
+                if (!res.ok) return;
+                const list = await res.json();
+                const arr = Array.isArray(list) ? list : [];
+                const count = arr.length;
+                if (badge) {
+                    if (count > 0) {
+                        badge.textContent = count > 99 ? '99+' : String(count);
+                        badge.classList.add('show');
+                    } else {
+                        badge.classList.remove('show');
+                    }
+                }
+                if (banner) {
+                    const next = arr.find(m => !shownIds.has(m.id));
+                    if (next) { shownIds.add(next.id); showBanner(next); }
+                }
+            } catch (err) {}
+        }
+        window.refreshSidebarMentionBadge = pollMentionBadge;
+        pollMentionBadge();
+        setInterval(pollMentionBadge, 10000);
+    })();
+</script>
+
+<script>
+    // 弹层统一关闭入口（apple-design §7）：先加 .closing 播放退出动画，
+    // 动画结束后才移除 .active 隐藏；与进入动画同路径反向。
+    function closeOverlay(el) {
+        if (!el || !el.classList.contains('active')) return;
+        el.classList.add('closing');
+        setTimeout(function () {
+            el.classList.remove('closing');
+            el.classList.remove('active');
+        }, 160);
+    }
+    window.closeOverlay = closeOverlay;
+</script>
+
+<script>
+    // 外观切换：跟随系统 → 浅色 → 深色（持久化到 localStorage，防闪烁的初始化脚本在各页 <head>）
+    (function() {
+        const KEY = 'vc-theme';
+        const label = document.querySelector('#themeToggleItem .text');
+        const icon = document.getElementById('themeToggleIcon');
+        const iconByMode = { auto: 'fa-circle-half-stroke', light: 'fa-sun', dark: 'fa-moon' };
+
+        function apply(mode, save) {
+            if (mode === 'dark' || mode === 'light') {
+                document.documentElement.setAttribute('data-theme', mode);
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+            }
+            if (label) label.textContent = mode === 'dark' ? '深色' : (mode === 'light' ? '浅色' : '外观');
+            if (icon) icon.className = 'fas ' + (iconByMode[mode] || iconByMode.auto);
+            if (save) { try { localStorage.setItem(KEY, mode); } catch (e) {} }
+        }
+
+        let mode = 'auto';
+        try { mode = localStorage.getItem(KEY) || 'auto'; } catch (e) {}
+        apply(mode, false);
+
+        const item = document.getElementById('themeToggleItem');
+        if (item) {
+            item.addEventListener('click', function() {
+                const order = ['auto', 'light', 'dark'];
+                mode = order[(order.indexOf(mode) + 1) % order.length];
+                apply(mode, true);
+            });
+        }
+    })();
+</script>
+
+{{if eq .Role "teacher"}}
+<!-- ============ 上课模式：浮窗圆点 + 屏幕批注 + 传屏 ============ -->
+<div id="castRoot">
+    <button id="castLauncher" title="进入上课模式（浮窗批注 / 传屏）"><i class="fas fa-chalkboard-user"></i><span class="full-text"> 上课</span></button>
+    <video id="zenMirror" autoplay playsinline muted></video>
+    <canvas id="annotateCanvas"></canvas>
+    <div id="castDot" title="点击：展开工具　拖动：调整位置"><i class="fas fa-chalkboard-user"></i></div>
+    <div id="castToolbar">
+        <button id="toolPen" title="画笔批注"><i class="fas fa-pen"></i><span>画笔</span></button>
+        <button id="toolEraser" title="点击使用橡皮，长按清除全部批注"><i class="fas fa-eraser"></i><span>橡皮</span></button>
+        <button id="toolCast" title="把本机屏幕实时传到学生端"><i class="fas fa-tower-broadcast"></i><span>传屏</span></button>
+        <button id="toolMax" title="回到界面（批注保留）"><i class="fas fa-up-right-and-down-left-to-center"></i><span>最大化</span></button>
+    </div>
+    <div id="penPalette">
+        <div class="palette-colors">
+            <button class="color-dot active" data-c="#E02020" style="background:#E02020" title="红色"></button>
+            <button class="color-dot" data-c="#1E6FE0" style="background:#1E6FE0" title="蓝色"></button>
+            <button class="color-dot" data-c="#1F8A3B" style="background:#1F8A3B" title="绿色"></button>
+            <button class="color-dot" data-c="#E07A2E" style="background:#E07A2E" title="橙色"></button>
+            <button class="color-dot" data-c="#222222" style="background:#222222" title="黑色"></button>
+            <button class="color-dot" data-c="#FFFFFF" style="background:#FFFFFF" title="白色"></button>
+        </div>
+        <div class="palette-sizes">
+            <button class="size-dot" data-s="3" title="细"><span style="width:4px;height:4px"></span></button>
+            <button class="size-dot active" data-s="6" title="中"><span style="width:8px;height:8px"></span></button>
+            <button class="size-dot" data-s="12" title="粗"><span style="width:13px;height:13px"></span></button>
+        </div>
+    </div>
+    <div id="eraserCursor"><i class="fas fa-eraser"></i></div>
+    <div id="castPanel">
+        <div class="cast-panel-title"><i class="fas fa-tower-broadcast"></i> 课堂传屏</div>
+        <div class="cast-panel-status" id="castStatusRow">未开启传屏</div>
+        <button class="pipe-btn" id="castToggleBtn"><i class="fas fa-play"></i> 开启传屏</button>
+        <div class="cast-panel-row">
+            <label>画质
+                <select id="castQuality"><option value="hd">高清</option><option value="smooth">流畅</option></select>
+            </label>
+            <label>帧率
+                <select id="castFps"><option value="4">4</option><option value="8" selected>8</option><option value="15">15</option></select>
+            </label>
+        </div>
+        <button class="pipe-btn" id="recToggleBtn"><i class="fas fa-circle-dot"></i> 录屏（含声音）</button>
+        <div class="cast-panel-subtitle">录屏存档</div>
+        <div class="cast-record-list" id="recList"><div class="empty-hint">暂无录屏</div></div>
+    </div>
+    <div id="castToast"></div>
+</div>
+<script>
+(function() {
+    const root = document.getElementById('castRoot');
+    const launcher = document.getElementById('castLauncher');
+    const dot = document.getElementById('castDot');
+    const toolbar = document.getElementById('castToolbar');
+    const palette = document.getElementById('penPalette');
+    const canvas = document.getElementById('annotateCanvas');
+    const zenMirror = document.getElementById('zenMirror');
+    const eraserCursor = document.getElementById('eraserCursor');
+    const castPanel = document.getElementById('castPanel');
+    const castStatusRow = document.getElementById('castStatusRow');
+    const castToggleBtn = document.getElementById('castToggleBtn');
+    const recToggleBtn = document.getElementById('recToggleBtn');
+    const castToast = document.getElementById('castToast');
+    if (!root) return;
+    const ctx = canvas.getContext('2d');
+
+    let zen = false, tool = null, drawing = false;
+    let mirrorStream = null; // 上课模式的桌面镜像（视觉等效“透明覆盖桌面”）
+    let penColor = '#E02020', penSize = 6;
+    const ERASER = 44; // 橡皮边长（px）
+    let dotPos = null;
+    let saveTimer = null;
+
+    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+    function toast(msg) {
+        castToast.textContent = msg;
+        castToast.classList.add('show');
+        clearTimeout(castToast._t);
+        castToast._t = setTimeout(() => castToast.classList.remove('show'), 2200);
+    }
+
+    // ----- 画布尺寸与批注保留 -----
+    function fitCanvas() {
+        const dpr = window.devicePixelRatio || 1;
+        const snapshot = canvas.width > 0 ? canvas.toDataURL('image/png') : null;
+        canvas.width = Math.round(window.innerWidth * dpr);
+        canvas.height = Math.round(window.innerHeight * dpr);
+        canvas.style.width = window.innerWidth + 'px';
+        canvas.style.height = window.innerHeight + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        if (snapshot) {
+            const img = new Image();
+            img.onload = () => ctx.drawImage(img, 0, 0, window.innerWidth, window.innerHeight);
+            img.src = snapshot;
+        }
+    }
+    function saveInk() {
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => {
+            try {
+                if (!canvas.width) return;
+                const d = canvas.toDataURL('image/png');
+                // 批注快照只存会话内（切页/最小化可恢复）；应用退出即不保存
+                if (d.length < 3000000) sessionStorage.setItem('castInk', d);
+                else sessionStorage.removeItem('castInk');
+            } catch (e) {}
+        }, 1000);
+    }
+    function restoreInk() {
+        try {
+            const d = sessionStorage.getItem('castInk');
+            if (!d) return;
+            const img = new Image();
+            img.onload = () => ctx.drawImage(img, 0, 0, window.innerWidth, window.innerHeight);
+            img.src = d;
+        } catch (e) {}
+    }
+    function clearAllInk() {
+        ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+        try { sessionStorage.removeItem('castInk'); } catch (e) {}
+        toast('已清除全部批注');
+    }
+    window.addEventListener('resize', () => { if (zen) fitCanvas(); });
+
+    // ----- 进入 / 退出上课模式 -----
+    function enterZen() {
+        if (zen) return;
+        zen = true;
+        document.body.classList.add('zen-mode');
+        try { sessionStorage.setItem('castZen', '1'); } catch (e) {}
+        launcher.style.display = 'none';
+        fitCanvas();
+        restoreInk();
+        canvas.style.display = 'block';
+        dot.style.display = 'flex';
+        if (!dotPos) dotPos = { x: window.innerWidth - 96, y: window.innerHeight - 150 };
+        placeDot();
+        startZenMirror(); // 共享屏幕 → 桌面镜像铺满背景，等效在桌面上批注
+    }
+    function exitZen() {
+        zen = false;
+        document.body.classList.remove('zen-mode');
+        try { sessionStorage.removeItem('castZen'); } catch (e) {}
+        dot.style.display = 'none';
+        toolbar.style.display = 'none';
+        palette.style.display = 'none';
+        castPanel.style.display = 'none';
+        hideEraser();
+        canvas.style.display = 'none';
+        setTool(null);
+        saveInk();
+        launcher.style.display = 'inline-flex';
+        if (!casting) stopZenMirror(); // 传屏进行中时保留采集流
+    }
+    launcher.addEventListener('click', enterZen);
+
+    // ----- 桌面镜像：共享屏幕作为批注背景（浏览器内等效“透明覆盖桌面”） -----
+    function setMirror(stream) {
+        mirrorStream = stream;
+        if (stream) {
+            zenMirror.srcObject = stream;
+            zenMirror.style.display = 'block';
+            document.body.classList.add('zen-mirror');
+            stream.getVideoTracks()[0].addEventListener('ended', () => {
+                const wasCastSource = casting && castStream === stream;
+                stopZenMirror();
+                if (wasCastSource) stopCast();
+            });
+        } else {
+            zenMirror.srcObject = null;
+            zenMirror.style.display = 'none';
+            document.body.classList.remove('zen-mirror');
+        }
+    }
+    async function startZenMirror() {
+        if (mirrorStream) return true;
+        if (casting && castStream) { setMirror(castStream); return true; } // 传屏已在采集，直接复用
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) return false;
+        try {
+            const stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 12 }, audio: false });
+            if (!zen) { stream.getTracks().forEach(t => t.stop()); return false; }
+            setMirror(stream);
+            return true;
+        } catch (e) {
+            toast('未共享屏幕：批注将叠加在页面上');
+            return false;
+        }
+    }
+    function stopZenMirror() {
+        const s = mirrorStream;
+        mirrorStream = null;
+        if (s && (!casting || castStream !== s)) s.getTracks().forEach(t => t.stop());
+        zenMirror.srcObject = null;
+        zenMirror.style.display = 'none';
+        document.body.classList.remove('zen-mirror');
+    }
+
+    // ----- 圆点：拖动 + 点击 -----
+    let dragState = null;
+    function placeDot() {
+        dot.style.left = dotPos.x + 'px';
+        dot.style.top = dotPos.y + 'px';
+    }
+    dot.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        dragState = { sx: e.clientX, sy: e.clientY, ox: dotPos.x, oy: dotPos.y, moved: false };
+        try { dot.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    dot.addEventListener('pointermove', e => {
+        if (!dragState) return;
+        const dx = e.clientX - dragState.sx, dy = e.clientY - dragState.sy;
+        if (!dragState.moved && Math.abs(dx) + Math.abs(dy) > 6) dragState.moved = true;
+        if (dragState.moved) {
+            dotPos.x = clamp(dragState.ox + dx, 8, window.innerWidth - 64);
+            dotPos.y = clamp(dragState.oy + dy, 8, window.innerHeight - 64);
+            placeDot();
+        }
+    });
+    dot.addEventListener('pointerup', () => {
+        if (dragState && !dragState.moved) toggleToolbar();
+        dragState = null;
+    });
+
+    function toggleToolbar() {
+        const show = toolbar.style.display !== 'flex';
+        if (show) {
+            const tx = clamp(dotPos.x - 132, 10, window.innerWidth - 150);
+            const ty = clamp(dotPos.y - 10, 10, window.innerHeight - 300);
+            toolbar.style.left = tx + 'px';
+            toolbar.style.top = ty + 'px';
+        } else {
+            palette.style.display = 'none';
+            castPanel.style.display = 'none';
+            hideEraser();
+        }
+        toolbar.style.display = show ? 'flex' : 'none';
+    }
+
+    // ----- 工具切换 -----
+    function setTool(t) {
+        tool = t;
+        document.getElementById('toolPen').classList.toggle('active', t === 'pen');
+        document.getElementById('toolEraser').classList.toggle('active', t === 'eraser');
+        canvas.style.pointerEvents = t ? 'auto' : 'none';
+        canvas.style.cursor = t === 'pen' ? 'crosshair' : 'none';
+        palette.style.display = t === 'pen' ? 'flex' : 'none';
+        if (t !== 'eraser') hideEraser();
+        if (t === 'pen') {
+            palette.style.left = toolbar.style.left;
+            palette.style.top = (parseFloat(toolbar.style.top || 0) + toolbar.offsetHeight + 8) + 'px';
+        }
+        if (t && canvas.width === 0) fitCanvas();
+    }
+    function positionPanel(panel) {
+        panel.style.left = toolbar.style.left;
+        panel.style.top = (parseFloat(toolbar.style.top || 0) + toolbar.offsetHeight + 8) + 'px';
+    }
+    document.getElementById('toolPen').addEventListener('click', () => setTool(tool === 'pen' ? null : 'pen'));
+    document.getElementById('toolMax').addEventListener('click', exitZen);
+
+    const eraserBtn = document.getElementById('toolEraser');
+    let lpTimer = null, lpFired = false;
+    eraserBtn.addEventListener('pointerdown', () => {
+        lpFired = false;
+        clearTimeout(lpTimer);
+        lpTimer = setTimeout(() => { lpFired = true; clearAllInk(); }, 650); // 长按清除全部批注
+    });
+    eraserBtn.addEventListener('pointerup', () => {
+        clearTimeout(lpTimer);
+        if (!lpFired) setTool(tool === 'eraser' ? null : 'eraser');
+    });
+    eraserBtn.addEventListener('pointerleave', () => clearTimeout(lpTimer));
+
+    // ----- 画笔 / 像素橡皮 -----
+    function canvasPoint(e) {
+        const r = canvas.getBoundingClientRect();
+        return { x: e.clientX - r.left, y: e.clientY - r.top };
+    }
+    function eraseAt(p) {
+        ctx.globalCompositeOperation = 'destination-out'; // 像素级擦除，不是整笔删除
+        ctx.fillStyle = '#000';
+        ctx.fillRect(p.x - ERASER / 2, p.y - ERASER / 2, ERASER, ERASER);
+        ctx.globalCompositeOperation = 'source-over';
+    }
+    function showEraserAt(e) {
+        eraserCursor.style.display = 'flex';
+        eraserCursor.style.left = (e.clientX - ERASER / 2) + 'px';
+        eraserCursor.style.top = (e.clientY - ERASER / 2) + 'px';
+    }
+    function hideEraser() { eraserCursor.style.display = 'none'; }
+
+    canvas.addEventListener('pointerdown', e => {
+        if (!tool) return;
+        drawing = true;
+        try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+        const p = canvasPoint(e);
+        if (tool === 'pen') {
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.strokeStyle = penColor;
+            ctx.lineWidth = penSize;
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p.x + 0.01, p.y);
+            ctx.stroke();
+        } else if (tool === 'eraser') {
+            eraseAt(p);
+        }
+    });
+    canvas.addEventListener('pointermove', e => {
+        if (tool === 'eraser') showEraserAt(e);
+        if (!drawing) return;
+        const p = canvasPoint(e);
+        if (tool === 'pen') {
+            ctx.lineTo(p.x, p.y);
+            ctx.stroke();
+        } else if (tool === 'eraser') {
+            eraseAt(p);
+        }
+    });
+    ['pointerup', 'pointercancel'].forEach(ev => canvas.addEventListener(ev, () => {
+        drawing = false;
+        saveInk();
+    }));
+    canvas.addEventListener('pointerout', e => { if (tool === 'eraser' && !drawing) hideEraser(); });
+
+    document.querySelectorAll('.color-dot').forEach(b => b.addEventListener('click', () => {
+        document.querySelectorAll('.color-dot').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        penColor = b.dataset.c;
+    }));
+    document.querySelectorAll('.size-dot').forEach(b => b.addEventListener('click', () => {
+        document.querySelectorAll('.size-dot').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        penSize = parseInt(b.dataset.s, 10);
+    }));
+
+    // ----- 传屏 -----
+    let casting = false, castStream = null, castVideo = null, castCanvas = null, castCtx = null, lastSig = '', castLoop = null;
+    let quality = 'hd', fps = 8;
+    document.getElementById('castQuality').addEventListener('change', function() { quality = this.value; });
+    document.getElementById('castFps').addEventListener('change', function() { fps = parseInt(this.value, 10); });
+
+    document.getElementById('toolCast').addEventListener('click', () => {
+        const show = castPanel.style.display !== 'flex';
+        if (show) positionPanel(castPanel);
+        castPanel.style.display = show ? 'flex' : 'none';
+        if (show) { refreshCastStatus(); loadRecordings(); }
+    });
+
+    function setCastStatus(text) { castStatusRow.textContent = text; }
+    function updateCastUI() {
+        castToggleBtn.innerHTML = casting
+            ? '<i class="fas fa-stop"></i> 停止传屏'
+            : '<i class="fas fa-play"></i> 开启传屏';
+        castToggleBtn.classList.toggle('on', casting);
+        document.getElementById('toolCast').classList.toggle('live', casting);
+        setCastStatus(casting ? '传屏中 · 学生端打开「课堂传屏」即可观看' : '未开启传屏');
+    }
+
+    castToggleBtn.addEventListener('click', () => { if (casting) stopCast(); else startCast(); });
+
+    async function startCast() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+            toast('当前浏览器不支持屏幕采集，请在教师电脑的浏览器上使用');
+            return;
+        }
+        try {
+            if (mirrorStream) {
+                castStream = mirrorStream; // 复用上课模式的桌面镜像，免二次选择
+            } else {
+                castStream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 12 }, audio: false });
+                if (zen) setMirror(castStream);
+            }
+        } catch (e) { toast('已取消屏幕选择'); return; }
+        casting = true;
+        lastSig = '';
+        castStream.getVideoTracks()[0].addEventListener('ended', stopCast); // 用户点浏览器“停止共享”时自动收尾
+        castVideo = document.createElement('video');
+        castVideo.srcObject = castStream;
+        castVideo.muted = true;
+        castVideo.playsInline = true;
+        await castVideo.play().catch(() => {});
+        castCanvas = document.createElement('canvas');
+        castCtx = castCanvas.getContext('2d', { willReadFrequently: true });
+        setTimeout(castFrameLoop, 100);
+        updateCastUI();
+        toast('传屏已开启');
+    }
+    function stopCast() {
+        casting = false;
+        clearTimeout(castLoop);
+        if (castStream && castStream !== mirrorStream) {
+            castStream.getTracks().forEach(t => t.stop()); // 镜像流仍在使用时不关
+        }
+        castStream = null;
+        fetch('/api/cast/stop', { method: 'POST' }).catch(() => {});
+        updateCastUI();
+        toast('传屏已停止');
+    }
+    // 变化帧门控：当前帧降采样成 32x18 求签名，画面没变就不上传，静止课件几乎零流量
+    let sigCanvas = null;
+    function blockSignature(c2x) {
+        if (!sigCanvas) {
+            sigCanvas = document.createElement('canvas');
+            sigCanvas.width = 32; sigCanvas.height = 18;
+        }
+        const sc = sigCanvas.getContext('2d', { willReadFrequently: true });
+        sc.drawImage(c2x.canvas, 0, 0, 32, 18);
+        const d = sc.getImageData(0, 0, 32, 18).data;
+        let sum = 0;
+        for (let i = 0; i < d.length; i += 4) sum += (d[i] + d[i + 1] + d[i + 2]) | 0;
+        return '' + sum;
+    }
+    function castFrameLoop() {
+        if (!casting) return;
+        if (castVideo && castVideo.videoWidth) {
+            const scale = quality === 'hd' ? 1 : 0.72;
+            const w = Math.round(castVideo.videoWidth * scale);
+            const h = Math.round(castVideo.videoHeight * scale);
+            if (w > 0 && h > 0) {
+                castCanvas.width = w;
+                castCanvas.height = h;
+                castCtx.drawImage(castVideo, 0, 0, w, h);
+                const sig = blockSignature(castCtx);
+                if (sig !== lastSig) {
+                    lastSig = sig;
+                    castCanvas.toBlob(blob => {
+                        if (!blob || !casting) return;
+                        fetch('/api/cast/frame', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'image/jpeg' },
+                            body: blob
+                        }).catch(() => {});
+                    }, 'image/jpeg', quality === 'hd' ? 0.62 : 0.5);
+                }
+            }
+        }
+        castLoop = setTimeout(castFrameLoop, Math.max(40, Math.round(1000 / fps)));
+    }
+    async function refreshCastStatus() {
+        try {
+            const r = await fetch('/api/cast/status');
+            const st = await r.json();
+            setCastStatus((casting || st.live) ? ('传屏进行中 · 正在观看 ' + (st.viewers || 0) + ' 人') : '未开启传屏');
+        } catch (e) {}
+    }
+    setInterval(() => { if (castPanel.style.display === 'flex') refreshCastStatus(); }, 3000);
+
+    // ----- 录屏（系统声音 + 可选麦克风） -----
+    let recorder = null, recStream = null, recId = null, recSeq = 0, recording = false;
+    function pickMime() {
+        for (const m of ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']) {
+            if (MediaRecorder.isTypeSupported(m)) return m;
+        }
+        return '';
+    }
+    recToggleBtn.addEventListener('click', () => { if (recording) stopRecording(); else startRecording(); });
+    function updateRecUI() {
+        recToggleBtn.innerHTML = recording
+            ? '<i class="fas fa-stop"></i> 停止录屏'
+            : '<i class="fas fa-circle-dot"></i> 录屏（含声音）';
+        recToggleBtn.classList.toggle('on', recording);
+    }
+    async function startRecording() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia || typeof MediaRecorder === 'undefined') {
+            toast('当前浏览器不支持录屏，请在教师电脑上使用');
+            return;
+        }
+        try {
+            recStream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 15 }, audio: true });
+        } catch (e) { toast('已取消屏幕选择'); return; }
+        // 尝试混入麦克风；失败则只用系统声音
+        try {
+            const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const ac = new AudioContext();
+            const dest = ac.createMediaStreamDestination();
+            if (recStream.getAudioTracks().length) ac.createMediaStreamSource(recStream).connect(dest);
+            ac.createMediaStreamSource(mic).connect(dest);
+            const mixed = new MediaStream([...recStream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
+            recStream.getTracks().forEach(t => t.stop());
+            recStream = mixed;
+        } catch (e) {}
+        try {
+            const r = await fetch('/api/cast/record/start', { method: 'POST' });
+            const d = await r.json();
+            if (!d.ok) throw new Error(d.error || '启动失败');
+            recId = d.id; recSeq = 0;
+        } catch (e) { toast('录屏启动失败：' + e.message); return; }
+        recorder = new MediaRecorder(recStream, { mimeType: pickMime() || undefined, videoBitsPerSecond: 2500000 });
+        recorder.ondataavailable = async ev => {
+            if (ev.data && ev.data.size > 0 && recId !== null) {
+                try {
+                    await fetch('/api/cast/record/chunk?id=' + recId + '&seq=' + (recSeq++), {
+                        method: 'POST', body: ev.data
+                    });
+                } catch (e) {}
+            }
+        };
+        recorder.onstop = async () => {
+            try {
+                await fetch('/api/cast/record/finish?id=' + recId, { method: 'POST' });
+                toast('录屏已保存');
+            } catch (e) {}
+            recId = null; recording = false; updateRecUI(); loadRecordings();
+        };
+        recStream.getVideoTracks()[0].addEventListener('ended', stopRecording);
+        recorder.start(5000);
+        recording = true; updateRecUI();
+        toast('录屏进行中');
+    }
+    function stopRecording() {
+        if (recorder && recorder.state !== 'inactive') recorder.stop();
+        if (recStream) { recStream.getTracks().forEach(t => t.stop()); recStream = null; }
+        recording = false; updateRecUI();
+    }
+    async function loadRecordings() {
+        const list = document.getElementById('recList');
+        try {
+            const r = await fetch('/api/cast/recordings');
+            const items = await r.json();
+            if (!items.length) { list.innerHTML = '<div class="empty-hint">暂无录屏</div>'; return; }
+            list.innerHTML = items.map(it => {
+                const size = it.size > 1048576 ? (it.size / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round((it.size || 0) / 1024)) + 'KB';
+                return '<div class="cast-rec-item"><span>' + it.name + '（' + size + '）</span>' +
+                    '<span class="cast-rec-actions">' +
+                    '<a class="pipe-btn" href="/api/cast/recordings/' + it.id + '/download"><i class="fas fa-download"></i> 下载</a>' +
+                    '<button class="pipe-btn" data-del="' + it.id + '"><i class="fas fa-trash"></i></button>' +
+                    '</span></div>';
+            }).join('');
+            list.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', async () => {
+                await fetch('/api/cast/recordings/' + btn.dataset.del, { method: 'DELETE' });
+                loadRecordings();
+            }));
+        } catch (e) { list.innerHTML = '<div class="empty-hint">录屏列表加载失败</div>'; }
+    }
+
+    // ----- 启动：若此前处于上课模式（页面跳转），自动恢复圆点与批注 -----
+    updateCastUI();
+    updateRecUI();
+    try { if (sessionStorage.getItem('castZen') === '1') enterZen(); } catch (e) {}
+})();
+</script>
+{{end}}
+{{end}}

@@ -1,0 +1,211 @@
+{{define "about"}}
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>关于 - MYClassroom 我的课堂</title>
+    <script>
+        (function(){try{var t=localStorage.getItem('vc-theme');if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();
+    </script>
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css?v=202608322">
+    <link rel="stylesheet" href="/static/css/style.css?v=202608322">
+    <link rel="stylesheet" href="/static/css/dashboard.css?v=202608322">
+    <style>
+        .content-panel {
+            padding: 0 !important;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        .about-wrapper {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            width: 100%;
+            position: relative;
+            overflow-y: auto;
+            min-height: 0;
+            align-items: center;
+            gap: 24px;
+            padding: 20px 40px 90px;
+        }
+        .about-gifs-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 32px;
+            width: 100%;
+        }
+        .credits-card {
+            width: 100%;
+            max-width: 760px;
+            background: var(--bg-elevated);
+            border: 1px solid var(--separator);
+            border-radius: var(--r-card);
+            box-shadow: var(--shadow-card);
+            padding: 22px 26px;
+        }
+        .credits-title {
+            font-size: var(--fs-headline, 17px);
+            font-weight: 700;
+            color: var(--tint);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .credits-title.sub { color: var(--label-2); margin-top: 18px; }
+        .credits-authors { display: flex; flex-wrap: wrap; gap: 14px; }
+        .author-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--bg-fill);
+            border: 1px solid var(--separator);
+            border-radius: 999px;
+            padding: 6px 18px 6px 6px;
+            font-size: var(--fs-subhead);
+            font-weight: 600;
+            color: var(--label);
+        }
+        .author-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: linear-gradient(160deg, rgba(255,255,255,.34), rgba(255,255,255,.05) 50%), var(--tint);
+            color: #fdf9f6;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-serif);
+            font-weight: 600;
+        }
+        .credits-thanks { display: flex; flex-wrap: wrap; gap: 10px; }
+        .thanks-chip {
+            background: rgba(201, 100, 66, 0.08);
+            border: 1px solid var(--separator);
+            color: var(--label);
+            border-radius: 999px;
+            padding: 6px 14px;
+            font-size: var(--fs-subhead);
+        }
+        .credits-quote {
+            margin: 18px 0 0;
+            text-align: center;
+            color: var(--label-3);
+            font-size: var(--fs-subhead);
+            font-style: italic;
+        }
+        .about-gif {
+            flex: 0 1 auto;
+            max-width: 32%;
+            min-width: 180px;
+            border-radius: var(--r-card);
+            box-shadow: var(--shadow-card);
+            transition: transform 0.3s var(--ease-spring);
+            background: var(--bg-elevated);
+            padding: 8px;
+        }
+        .about-gif img {
+            width: 100%;
+            height: auto;
+            display: block;
+            border-radius: 12px;
+        }
+        .about-gif:hover { transform: scale(1.02); }
+        .about-footer {
+            position: absolute;
+            bottom: 26px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            color: var(--label-2);
+            font-size: var(--fs-subhead);
+            pointer-events: none;
+            background: var(--material-sheet);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            padding: 12px 28px;
+            border-radius: 999px;
+            border: 1px solid var(--separator);
+            box-shadow: var(--shadow-card);
+            white-space: nowrap;
+        }
+        .about-footer p { margin: 2px 0; }
+        .about-footer .highlight { color: var(--tint); font-weight: 700; }
+        .main-content { display: flex; flex-direction: column; }
+        .main-content .top-bar { flex-shrink: 0; }
+        .main-content .content-panel { flex: 1; }
+        @media (max-width: 768px) {
+            .about-wrapper {
+                flex-direction: column;
+                gap: 16px;
+                padding: 16px;
+            }
+            .about-gif { max-width: 62%; min-width: 140px; }
+            .about-gifs-row { flex-direction: row; gap: 12px; }
+            .credits-card { padding: 16px 18px; }
+            .about-footer { font-size: var(--fs-caption); padding: 10px 18px; bottom: 16px; white-space: normal; }
+        }
+    </style>
+</head>
+<body class="app-body">
+<div class="dashboard-container">
+    {{template "sidebar" .}}
+    <main class="main-content">
+        <header class="top-bar">
+            <div class="user-info">
+                <span class="page-name">关于</span>
+                <span class="role-badge">{{if eq .Role "teacher"}}教师{{else}}学生{{end}}</span>
+            </div>
+            <div class="header-actions">
+                <span class="last-login">上次登录：{{.LastLogin}}</span>
+            </div>
+        </header>
+        <section class="content-panel">
+            <div class="about-wrapper">
+                <div class="about-gifs-row">
+                    <div class="about-gif">
+                        <img src="/static/images/Evernight.gif" alt="Evernight" loading="lazy">
+                    </div>
+                    <div class="about-gif">
+                        <img src="/static/images/Cyrene.gif" alt="Cyrene" loading="lazy">
+                    </div>
+                </div>
+                <div class="credits-card">
+                    <div class="credits-title"><i class="fas fa-users"></i> 关于作者</div>
+                    <div class="credits-authors">
+                        <span class="author-chip"><span class="author-avatar">黄</span>黄智韬</span>
+                        <span class="author-chip"><span class="author-avatar">张</span>张廷</span>
+                        <span class="author-chip"><span class="author-avatar">林</span>林建安</span>
+                    </div>
+                    <div class="credits-title sub"><i class="fas fa-hand-holding-heart"></i> 提供帮助与支持</div>
+                    <div class="credits-thanks">
+                        <span class="thanks-chip">林森老师</span>
+                        <span class="thanks-chip">刘昱言</span>
+                        <span class="thanks-chip">庄梓茵</span>
+                        <span class="thanks-chip">吕鹏老师</span>
+                        <span class="thanks-chip">校长</span>
+                        <span class="thanks-chip">洪子皓</span>
+                        <span class="thanks-chip">薛志鹏</span>
+                        <span class="thanks-chip">梁艺馨</span>
+                        <span class="thanks-chip">陈钰</span>
+                        <span class="thanks-chip">杨晨玥</span>
+                    </div>
+                    <p class="credits-quote">"让每一堂课都活起来。"</p>
+                </div>
+                <div class="about-footer">
+                    <p>MYClassroom · 我的课堂 · <span class="highlight">Go + Fiber</span></p>
+                    <p>Original CMS by <span class="highlight">Evernight_Cyrene</span></p>
+                    <p>我的课堂适配 © 2026 <span class="highlight">黄智韬</span>. All rights reserved.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+{{template "mobile_nav" .}}
+<div class="bottom-spacer"></div>
+</body>
+</html>
+{{end}}

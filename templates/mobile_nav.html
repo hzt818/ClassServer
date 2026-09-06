@@ -1,0 +1,397 @@
+{{define "mobile_nav"}}
+<nav class="mobile-nav" id="mobileNav">
+    <!-- 切换按钮（左侧） -->
+    <button class="nav-toggle-btn" id="navToggleBtn" aria-label="切换输入面板">
+        <i class="fas fa-chevron-up" id="toggleIcon"></i>
+    </button>
+    <span class="nav-toggle-tip" id="navToggleTip">仅聊天室内可用</span>
+
+    <!-- 中间内容区 -->
+    <div class="nav-content">
+        <div class="nav-links" id="navLinks">
+            <a href="/dashboard" class="{{if eq .Active "home"}}active{{end}}">
+            <i class="fas fa-house"></i>
+            <span>主页</span>
+            </a>
+            <a href="/chat" class="{{if eq .Active "chat"}}active{{end}}">
+            <i class="fas fa-comment-dots"></i>
+            <span>聊天室</span>
+            </a>
+            <a href="/essay" class="{{if eq .Active "essay"}}active{{end}}">
+            <i class="fas fa-pen-fancy"></i>
+            <span>作文批改</span>
+            </a>
+            {{if eq .Role "teacher"}}
+            <a href="/pipeline" class="{{if eq .Active "pipeline"}}active{{end}}">
+            <i class="fas fa-bars-progress"></i>
+            <span>批阅流水线</span>
+            </a>
+            {{end}}
+            <a href="/showcase" class="{{if eq .Active "showcase"}}active{{end}}">
+            <i class="fas fa-award"></i>
+            <span>优秀作文</span>
+            </a>
+            <a href="/cast" class="{{if eq .Active "cast"}}active{{end}}">
+            <i class="fas fa-desktop"></i>
+            <span>课堂传屏</span>
+            </a>
+            {{if eq .Role "teacher"}}
+            <a href="/admin/users" class="{{if eq .Active "admin_users"}}active{{end}}">
+            <i class="fas fa-users-gear"></i>
+            <span>账号管理</span>
+            </a>
+            {{end}}
+            <a href="/about" class="{{if eq .Active "about"}}active{{end}}">
+            <i class="fas fa-circle-info"></i>
+            <span>关于作者</span>
+            </a>
+            <a href="/logout" class="nav-logout">
+                <i class="fas fa-right-from-bracket"></i>
+                <span>退出</span>
+            </a>
+        </div>
+        <!-- 输入框 -->
+        <div class="chat-input-mobile" id="chatInputMobile">
+            <div id="quoteAreaMobile" class="quote-area"></div>
+            <!-- 更多面板 -->
+            <div class="more-panel" id="morePanelMobile">
+                <button class="more-panel-item" id="morePanelFileBtnMobile"><span class="more-panel-icon-chip chip-file"><i class="fas fa-paperclip"></i></span><span class="more-panel-item-text"><span class="more-panel-item-title">文件发送</span><span class="more-panel-item-sub">发送图片、文档等文件</span></span></button>
+                <button class="more-panel-item" id="morePanelVoiceBtnMobile"><span class="more-panel-icon-chip chip-call"><i class="fas fa-headset"></i></span><span class="more-panel-item-text"><span class="more-panel-item-title">语音聊天</span><span class="more-panel-item-sub">发起或加入语音通话</span></span></button>
+                <button class="more-panel-item" id="morePanelVoiceInputBtnMobile"><span class="more-panel-icon-chip chip-voice"><i class="fas fa-microphone"></i></span><span class="more-panel-item-text"><span class="more-panel-item-title">语音输入</span><span class="more-panel-item-sub">最长 60 秒的语音消息</span></span></button>
+            </div>
+            <div class="input-row">
+                <!-- 顺序设置 -->
+                <button class="more-btn" id="moreBtnMobile" aria-label="更多功能"><i class="fas fa-plus"></i></button>
+                <textarea id="messageInputMobile" placeholder="输入消息..." disabled enterkeyhint="enter" rows="1"></textarea>
+                <button id="sendButtonMobile" disabled aria-label="发送消息"><i class="fas fa-paper-plane"></i></button>
+            </div>
+            <!-- 语音输入录音条：录音时整个输入框切换为此形态 -->
+            <div class="voice-record-bar" id="voiceRecordBarMobile">
+                <button class="voice-record-cancel" id="voiceRecordCancelBtnMobile" aria-label="取消录音"><i class="fas fa-trash"></i></button>
+                <div class="voice-record-wave" id="voiceRecordWaveMobile">
+                    <span class="rec-dot"></span>
+                </div>
+                <div class="voice-record-time" id="voiceRecordTimeMobile">0:00 / 1:00</div>
+                <button class="voice-record-stop" id="voiceRecordStopBtnMobile" aria-label="结束并发送"><i class="fas fa-check"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 收起按钮 -->
+    <button class="nav-collapse-btn" id="navCollapseBtn" aria-label="收起">
+        <i class="fas fa-chevron-down"></i>
+    </button>
+</nav>
+
+<!-- 拉起按钮 -->
+<button class="nav-raise-btn" id="navRaiseBtn" style="display:none;" aria-label="展开输入栏">
+    <i class="fas fa-chevron-up"></i>
+</button>
+
+<style>
+    /* ===== 移动端输入条（令牌化，配合 dashboard.css 的全局移动端规则） ===== */
+    .mobile-nav .nav-links a.nav-logout { color: var(--red) !important; }
+
+    .mobile-nav .chat-input-mobile .input-row {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: flex-end !important;
+        gap: 8px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        padding-bottom: env(safe-area-inset-bottom) !important;
+    }
+    .mobile-nav .chat-input-mobile .input-row .file-btn {
+        background: var(--tint) !important;
+        border: none !important;
+        border-radius: 50% !important;
+        color: #fff !important;
+        width: 38px !important;
+        height: 38px !important;
+        min-width: 38px !important;
+        font-size: 15px !important;
+        cursor: pointer !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        flex-shrink: 0 !important;
+        transition: transform 0.15s var(--ease-spring), filter 0.2s var(--ease) !important;
+    }
+    .mobile-nav .chat-input-mobile .input-row .file-btn:hover { filter: brightness(0.94) !important; }
+    .mobile-nav .chat-input-mobile .input-row .file-btn:active { transform: scale(0.92) !important; }
+    .mobile-nav .chat-input-mobile .input-row .more-btn {
+        background: var(--bg-fill) !important;
+        border: none !important;
+        border-radius: 50% !important;
+        color: var(--label-2) !important;
+        width: 38px !important;
+        height: 38px !important;
+        min-width: 38px !important;
+        padding: 0 !important;
+        font-size: 15px !important;
+        cursor: pointer !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        flex-shrink: 0 !important;
+        transition: background-color 0.2s var(--ease), transform 0.15s var(--ease-spring), color 0.2s var(--ease) !important;
+    }
+    .mobile-nav .chat-input-mobile .input-row .more-btn:hover,
+    .mobile-nav .chat-input-mobile .input-row .more-btn.active {
+        background: var(--tint-bg) !important;
+        color: var(--tint) !important;
+    }
+    .mobile-nav .chat-input-mobile .input-row textarea,
+    .mobile-nav .chat-input-mobile .input-row #messageInputMobile {
+        flex: 1 !important;
+        min-height: 40px !important;
+        max-height: 120px !important;
+        padding: 9px 16px !important;
+        background: var(--bg-fill) !important;
+        border: 1px solid transparent !important;
+        border-radius: 18px !important;
+        color: var(--label) !important;
+        font-size: 16px !important;
+        font-family: var(--font) !important;
+        line-height: 1.4 !important;
+        outline: none !important;
+        resize: none !important;
+        transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease) !important;
+    }
+    .mobile-nav .chat-input-mobile .input-row textarea:focus {
+        border-color: var(--tint) !important;
+        box-shadow: 0 0 0 3px var(--tint-bg) !important;
+    }
+    .mobile-nav .chat-input-mobile .input-row #sendButtonMobile {
+        width: 38px !important;
+        height: 38px !important;
+        min-width: 38px !important;
+        min-height: 38px !important;
+        padding: 0 !important;
+        background: var(--tint) !important;
+        border: none !important;
+        border-radius: 50% !important;
+        color: #fff !important;
+        font-size: 15px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        flex-shrink: 0 !important;
+        transition: background-color 0.2s var(--ease), transform 0.15s var(--ease-spring), opacity 0.2s !important;
+    }
+    .mobile-nav .chat-input-mobile .input-row #sendButtonMobile:hover { background: var(--tint-press) !important; }
+    .mobile-nav .chat-input-mobile .input-row #sendButtonMobile:active { transform: scale(0.9) !important; }
+    .mobile-nav .chat-input-mobile .input-row #sendButtonMobile:disabled { opacity: 0.35 !important; }
+
+    /* 更多面板：移动端从底栏上方展开的底部面板 */
+    .mobile-nav .chat-input-mobile .more-panel {
+        position: absolute !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: calc(100% + 8px) !important;
+        background: var(--material-sheet) !important;
+        backdrop-filter: blur(28px) saturate(180%) !important;
+        -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
+        border: 1px solid var(--separator) !important;
+        border-radius: 18px !important;
+        padding: 8px !important;
+        box-shadow: var(--shadow-float) !important;
+        z-index: 300 !important;
+    }
+    .mobile-nav .chat-input-mobile .more-panel .more-panel-icon-chip { width: 36px !important; height: 36px !important; }
+    .mobile-nav .chat-input-mobile .more-panel .more-panel-item-title { font-size: 15px !important; }
+    .mobile-nav .chat-input-mobile .more-panel .more-panel-item-sub { font-size: 12px !important; }
+
+    /* 引用区（移动端） */
+    .mobile-nav .chat-input-mobile .quote-area { width: 100% !important; }
+    .quote-item {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        background: var(--bg-fill) !important;
+        border-left: 3px solid var(--tint) !important;
+        border-radius: 10px !important;
+        padding: 6px 10px !important;
+        margin-bottom: 4px !important;
+        font-size: 12px !important;
+        color: var(--label-2) !important;
+        min-width: 0 !important;
+    }
+    .quote-item .quote-content {
+        flex: 1 !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+        min-width: 0 !important;
+        color: var(--label) !important;
+    }
+    .quote-item .quote-remove {
+        background: none !important;
+        border: none !important;
+        color: var(--label-3) !important;
+        font-size: 13px !important;
+        padding: 4px !important;
+        cursor: pointer !important;
+        border-radius: 6px !important;
+        flex-shrink: 0 !important;
+    }
+    .quote-item .quote-remove:hover { color: var(--red) !important; }
+
+    /* 有引用内容时输入行压缩高度 */
+    .mobile-nav .chat-input-mobile .input-row.has-quotes { margin-top: 4px !important; }
+
+    .mobile-nav .nav-toggle-btn,
+    .mobile-nav .nav-collapse-btn {
+        flex: 0 0 40px !important;
+        height: 44px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        border-radius: 50% !important;
+        transition: background-color 0.2s var(--ease) !important;
+    }
+    .mobile-nav .nav-toggle-btn:hover,
+    .mobile-nav .nav-collapse-btn:hover { background: var(--bg-fill) !important; }
+
+    /* 刘海屏/手势条：底栏整体避开安全区 */
+    @supports (bottom: env(safe-area-inset-bottom)) {
+        .mobile-nav {
+            bottom: calc(8px + env(safe-area-inset-bottom)) !important;
+        }
+        .nav-raise-btn {
+            bottom: calc(8px + env(safe-area-inset-bottom)) !important;
+        }
+    }
+</style>
+
+<script>
+    (function() {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+
+        function init() {
+            const mobileNav = document.getElementById('mobileNav');
+            const toggleBtn = document.getElementById('navToggleBtn');
+            const toggleTip = document.getElementById('navToggleTip');
+            const toggleIcon = document.getElementById('toggleIcon');
+            const navLinks = document.getElementById('navLinks');
+            const chatInput = document.getElementById('chatInputMobile');
+            const collapseBtn = document.getElementById('navCollapseBtn');
+            const raiseBtn = document.getElementById('navRaiseBtn');
+
+            if (!mobileNav) return;
+
+            // 判断"移动端输入框当前是否展示"？
+            function syncMobileInputBodyClass() {
+                const inputShown = chatInput && chatInput.classList.contains('active') && !mobileNav.classList.contains('collapsed');
+                document.body.classList.toggle('mobile-chat-input-active', !!inputShown);
+            }
+            window.syncMobileInputBodyClass = syncMobileInputBodyClass;
+
+            const isChatPage = window.location.pathname === '/chat' ||
+                document.getElementById('messageInput') !== null;
+
+            let toggleTipTimer = null;
+            function showToggleTip() {
+                if (!toggleTip) return;
+                toggleTip.classList.add('show');
+                clearTimeout(toggleTipTimer);
+                toggleTipTimer = setTimeout(function() {
+                    toggleTip.classList.remove('show');
+                }, 1600);
+            }
+
+            if (!isChatPage) {
+                if (toggleBtn) {
+                    toggleBtn.style.display = 'flex';
+                    toggleBtn.classList.add('disabled');
+                    toggleBtn.setAttribute('aria-disabled', 'true');
+                    toggleBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        showToggleTip();
+                    });
+                }
+                if (chatInput) chatInput.style.display = 'none';
+                if (navLinks) navLinks.style.display = 'flex';
+                if (collapseBtn) collapseBtn.classList.remove('hidden');
+            } else {
+                if (navLinks) navLinks.classList.remove('hidden');
+                if (chatInput) chatInput.classList.remove('active');
+                if (toggleIcon) toggleIcon.className = 'fas fa-chevron-up';
+                if (collapseBtn) collapseBtn.classList.remove('hidden');
+                if (toggleBtn) {
+                    toggleBtn.style.display = 'flex';
+                    toggleBtn.classList.remove('disabled');
+                    toggleBtn.removeAttribute('aria-disabled');
+                }
+
+                if (toggleBtn) {
+                    toggleBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        if (mobileNav.classList.contains('collapsed')) {
+                            mobileNav.classList.remove('collapsed');
+                            if (raiseBtn) raiseBtn.classList.remove('show');
+                        }
+                        const isInputVisible = chatInput && chatInput.classList.contains('active');
+                        if (isInputVisible) {
+                            chatInput.classList.remove('active');
+                            navLinks.classList.remove('hidden');
+                            mobileNav.classList.remove('input-mode');
+                            toggleIcon.className = 'fas fa-chevron-up';
+                            const mobileInput = document.getElementById('messageInputMobile');
+                            if (mobileInput && document.activeElement === mobileInput) {
+                                mobileInput.blur();
+                            }
+                        } else {
+                            chatInput.classList.add('active');
+                            navLinks.classList.add('hidden');
+                            mobileNav.classList.add('input-mode');
+                            toggleIcon.className = 'fas fa-chevron-down';
+                            const mobileInput = document.getElementById('messageInputMobile');
+                            if (mobileInput && !mobileInput.disabled) {
+                                setTimeout(function() {
+                                    mobileInput.focus();
+                                }, 100);
+                            }
+                        }
+                        syncMobileInputBodyClass();
+                    });
+                }
+
+                const mobileInput = document.getElementById('messageInputMobile');
+                if (mobileInput) {
+                    mobileInput.setAttribute('inputmode', 'text');
+                }
+            }
+
+            if (collapseBtn) {
+                collapseBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    mobileNav.classList.add('collapsed');
+                    if (raiseBtn) raiseBtn.classList.add('show');
+                    const mobileInput = document.getElementById('messageInputMobile');
+                    if (mobileInput && document.activeElement === mobileInput) {
+                        mobileInput.blur();
+                    }
+                    syncMobileInputBodyClass();
+                });
+            }
+
+            if (raiseBtn) {
+                raiseBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    mobileNav.classList.remove('collapsed');
+                    raiseBtn.classList.remove('show');
+                    if (collapseBtn) collapseBtn.classList.remove('hidden');
+                    syncMobileInputBodyClass();
+                });
+            }
+
+            syncMobileInputBodyClass();
+        }
+    })();
+</script>
+{{end}}

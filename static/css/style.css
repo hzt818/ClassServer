@@ -1,0 +1,666 @@
+/* ============================================================
+   MYClassroom · Apple HIG 液态玻璃设计体系
+   ------------------------------------------------------------
+   气质：一间"重新构想为产品页面的文学沙龙"——温暖、从容、安静而充满智慧。
+   色彩：暖羊皮纸背景 / 暖黑文字 / 陶土强调色，中性色全部带暖底调。
+   字体：标题 Lora（衬线，书名般的庄重感）· 正文 Poppins（无衬线）。
+   质感：液态玻璃（高透 + 镜面高光 + 亮缘折射）+ 圆润大圆角 + 暖调柔影。
+   动效：弹簧回弹 + 悬停流光，动态感十足（Liquid Glass 动态高光）。
+   ============================================================ */
+
+/* ---------- 本地字体（离线可用） ---------- */
+@font-face {
+    font-family: "Lora";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("/static/vendor/fonts/lora-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+    font-family: "Lora";
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url("/static/vendor/fonts/lora-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+    font-family: "Lora";
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url("/static/vendor/fonts/lora-latin-600-normal.woff2") format("woff2");
+}
+@font-face {
+    font-family: "Lora";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("/static/vendor/fonts/lora-latin-700-normal.woff2") format("woff2");
+}
+@font-face {
+    font-family: "Poppins";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("/static/vendor/fonts/poppins-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+    font-family: "Poppins";
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url("/static/vendor/fonts/poppins-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+    font-family: "Poppins";
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url("/static/vendor/fonts/poppins-latin-600-normal.woff2") format("woff2");
+}
+@font-face {
+    font-family: "Poppins";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("/static/vendor/fonts/poppins-latin-700-normal.woff2") format("woff2");
+}
+
+/* ---------- 设计令牌 ---------- */
+:root {
+    color-scheme: light dark;
+
+    /* 字体：标题衬线（书名庄重感），正文无衬线 */
+    --font-serif: "Lora", Georgia, "Songti SC", "STZhongsong", "SimSun", serif;
+    --font: "Poppins", Arial, "PingFang SC", "Microsoft YaHei UI",
+            "Helvetica Neue", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+    /* 字阶（rem 基准：跟随用户浏览器字号设置缩放，Dynamic Type 等价物） */
+    --fs-large-title: 1.875rem;  --fw-large-title: 600;  --ls-large-title: -0.3px;
+    --fs-title2: 1.375rem;       --fw-title2: 600;
+    --fs-title3: 1.0625rem;      --fw-title3: 600;
+    --fs-headline: 0.9375rem;    --fw-headline: 600;
+    --fs-body: 0.9375rem;        --fw-body: 400;
+    --fs-subhead: 0.8125rem;     --fw-subhead: 400;
+    --fs-footnote: 0.75rem;      --fw-footnote: 400;
+    --fs-caption: 0.6875rem;     --fw-caption: 400;
+
+    /* 亮色：暖羊皮纸（Warm & Earthy） */
+    --bg: #faf9f5;                                /* 暖羊皮纸 */
+    --bg-deep: #f5f4ed;                           /* 稍深一档的羊皮纸 */
+    --bg-elevated: #ffffff;
+    --bg-fill: rgba(20, 20, 19, 0.045);
+    --bg-fill-strong: rgba(20, 20, 19, 0.09);
+    --label: #141413;                             /* 暖黑 */
+    --label-2: rgba(20, 20, 19, 0.62);
+    --label-3: rgba(20, 20, 19, 0.38);
+    --separator: #f0eee6;                         /* 奶油色边框 */
+    --separator-strong: #e8e6dc;
+
+    --tint: #c96442;                              /* 陶土色 */
+    --tint-press: #b0532f;
+    --tint-bg: rgba(201, 100, 66, 0.10);
+    --green: #788c5d;  --green-bg: rgba(120, 140, 93, 0.14);   /* 橄榄绿 */
+    --red: #b3453a;    --red-bg: rgba(179, 69, 58, 0.10);      /* 暖赤 */
+    --orange: #d97706; --orange-bg: rgba(217, 119, 6, 0.12);
+    --blue: #6a9bcc;   --blue-bg: rgba(106, 155, 204, 0.13);   /* 雾蓝 */
+    --purple: #8f7bb8; --purple-bg: rgba(143, 123, 184, 0.13); /* 青灰紫 */
+    --teal: #3a9ea5;   --teal-bg: rgba(58, 158, 165, 0.12);    /* 湖青 */
+    --indigo: #7b8ac0; --indigo-bg: rgba(123, 138, 192, 0.13); /* 长春花 */
+
+    /* 材质（暖调半透明） */
+    --material-nav: rgba(250, 249, 245, 0.84);
+    --material-sidebar: rgba(245, 244, 237, 0.80);
+    --material-sheet: rgba(253, 252, 249, 0.92);
+
+    /* 液态玻璃（Liquid Glass）：高透 + 镜面高光 + 亮缘折射 */
+    --glass-bg: rgba(255, 255, 255, 0.46);
+    --glass-bg-strong: rgba(255, 255, 255, 0.62);
+    --glass-border: rgba(255, 255, 255, 0.55);
+    --glass-edge: rgba(255, 255, 255, 0.65);
+    --glass-bottom-shade: rgba(120, 90, 60, 0.10);
+    --glass-tint: rgba(250, 249, 245, 0.38);
+
+    /* 聊天气泡 */
+    --bubble-self: #c96442;
+    --bubble-self-label: #fdf9f6;
+    --bubble-other: #efede4;
+    --bubble-other-label: #141413;
+
+    /* 圆角 / 暖阴影 / 布局 */
+    --r-card: 18px;
+    --r-btn: 14px;
+    --r-input: 14px;
+    --r-sheet: 24px;
+    --shadow-card: 0 1px 2px rgba(74, 60, 42, 0.05), 0 8px 24px rgba(74, 60, 42, 0.07);
+    --shadow-float: 0 12px 40px rgba(74, 60, 42, 0.16);
+    --sidebar-w: 88px;
+    --sidebar-w-open: 216px;
+    --topbar-h: 52px;
+
+    --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+    --ease-paper: cubic-bezier(0.32, 0.72, 0.24, 1); /* 纸张平滑移动 */
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* 液态玻璃弹簧回弹 */
+}
+
+/* 手动深色：暖深棕（烛光书房），保持暖底调 */
+[data-theme="dark"] {
+    --bg: #201d19;
+    --bg-deep: #1a1815;
+    --bg-elevated: #2a2721;
+    --bg-fill: rgba(250, 247, 240, 0.065);
+    --bg-fill-strong: rgba(250, 247, 240, 0.12);
+    --label: #f0eee6;
+    --label-2: rgba(240, 238, 230, 0.64);
+    --label-3: rgba(240, 238, 230, 0.38);
+    --separator: rgba(240, 238, 230, 0.10);
+    --separator-strong: rgba(240, 238, 230, 0.16);
+
+    --tint: #d97757;                              /* 暖珊瑚 */
+    --tint-press: #e58a6c;
+    --tint-bg: rgba(217, 119, 87, 0.16);
+    --green: #97ab7a;  --green-bg: rgba(151, 171, 122, 0.16);
+    --red: #d4675c;    --red-bg: rgba(212, 103, 92, 0.15);
+    --orange: #e8933a; --orange-bg: rgba(232, 147, 58, 0.15);
+    --blue: #85aed3;   --blue-bg: rgba(133, 174, 211, 0.15);
+    --purple: #a995cc; --purple-bg: rgba(169, 149, 204, 0.15);
+
+    --material-nav: rgba(32, 29, 25, 0.85);
+    --material-sidebar: rgba(26, 24, 21, 0.80);
+    --material-sheet: rgba(42, 39, 33, 0.94);
+
+    /* 液态玻璃（暗色：墨玻璃） */
+    --glass-bg: rgba(58, 54, 46, 0.42);
+    --glass-bg-strong: rgba(58, 54, 46, 0.60);
+    --glass-border: rgba(255, 255, 255, 0.12);
+    --glass-edge: rgba(255, 255, 255, 0.16);
+    --glass-bottom-shade: rgba(0, 0, 0, 0.22);
+    --glass-tint: rgba(42, 39, 33, 0.38);
+
+    --bubble-self: #c96442;
+    --bubble-self-label: #fdf9f6;
+    --bubble-other: #33302a;
+    --bubble-other-label: #f0eee6;
+
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.25), 0 8px 24px rgba(0, 0, 0, 0.28);
+    --shadow-float: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]):not([data-theme="dark"]) {
+        --bg: #201d19;
+        --bg-deep: #1a1815;
+        --bg-elevated: #2a2721;
+        --bg-fill: rgba(250, 247, 240, 0.065);
+        --bg-fill-strong: rgba(250, 247, 240, 0.12);
+        --label: #f0eee6;
+        --label-2: rgba(240, 238, 230, 0.64);
+        --label-3: rgba(240, 238, 230, 0.38);
+        --separator: rgba(240, 238, 230, 0.10);
+        --separator-strong: rgba(240, 238, 230, 0.16);
+
+        --tint: #d97757;
+        --tint-press: #e58a6c;
+        --tint-bg: rgba(217, 119, 87, 0.16);
+        --green: #97ab7a;  --green-bg: rgba(151, 171, 122, 0.16);
+        --red: #d4675c;    --red-bg: rgba(212, 103, 92, 0.15);
+        --orange: #e8933a; --orange-bg: rgba(232, 147, 58, 0.15);
+        --blue: #85aed3;   --blue-bg: rgba(133, 174, 211, 0.15);
+        --purple: #a995cc; --purple-bg: rgba(169, 149, 204, 0.15);
+
+        --material-nav: rgba(32, 29, 25, 0.85);
+        --material-sidebar: rgba(26, 24, 21, 0.80);
+        --material-sheet: rgba(42, 39, 33, 0.94);
+
+        --glass-bg: rgba(58, 54, 46, 0.42);
+        --glass-bg-strong: rgba(58, 54, 46, 0.60);
+        --glass-border: rgba(255, 255, 255, 0.12);
+        --glass-edge: rgba(255, 255, 255, 0.16);
+        --glass-bottom-shade: rgba(0, 0, 0, 0.22);
+        --glass-tint: rgba(42, 39, 33, 0.38);
+
+        --bubble-self: #c96442;
+        --bubble-self-label: #fdf9f6;
+        --bubble-other: #33302a;
+        --bubble-other-label: #f0eee6;
+
+        --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.25), 0 8px 24px rgba(0, 0, 0, 0.28);
+        --shadow-float: 0 12px 40px rgba(0, 0, 0, 0.45);
+    }
+}
+
+/* ---------- 基础 Reset ---------- */
+*, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    max-width: 100%;
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+}
+
+body {
+    background: var(--bg);
+    color: var(--label);
+    font-family: var(--font);
+    font-size: var(--fs-body);
+    line-height: 1.55;
+    max-width: 100%;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    transition: background-color 0.3s var(--ease-paper), color 0.3s var(--ease-paper);
+}
+
+::selection { background: rgba(201, 100, 66, 0.22); }
+
+:focus-visible {
+    outline: 2px solid var(--tint);
+    outline-offset: 2px;
+    border-radius: 8px;
+}
+
+/* 滚动条：暖调、低调 */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--separator-strong); border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--label-3); border: 2px solid transparent; background-clip: content-box; }
+* { scrollbar-width: thin; scrollbar-color: var(--separator-strong) transparent; }
+
+/* ---------- 无障碍降级（apple-design §14） ----------
+   减弱动态：弹层/磁贴的位移与流光全部退化为短促淡入淡出（保留理解性颜色变化）；
+   减弱透明：玻璃表面转实底，去掉模糊。两者相互独立，命中其一即生效。 */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.15s !important;
+        scroll-behavior: auto !important;
+    }
+    /* 横幅类：reduced-motion 下禁用位移动画（transform 保持居中），
+       显隐改用 opacity 控制——否则移除 .show 后横幅仍停留在原位无法关闭 */
+    .toast, .mention-banner, #globalMentionBanner, #voiceToastBanner, .essay-toast-banner {
+        transform: translateX(-50%) !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        transition: opacity 0.15s ease !important;
+    }
+    .toast.show, .mention-banner.show, #globalMentionBanner.show,
+    #voiceToastBanner.show, .essay-toast-banner.show {
+        opacity: 1 !important;
+        pointer-events: auto !important;
+    }
+}
+@media (prefers-reduced-transparency: reduce) {
+    .liquid-glass,
+    .sidebar, .top-bar, .mobile-nav, .modal-content, .glass-modal,
+    .voice-overlay-header, .voice-controls, .voice-mini-pill {
+        background: var(--bg-elevated) !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+}
+
+/* 高对比（apple-design §14 prefers-contrast: more）：
+   近实底背景 + 明确描边，弱化透明度依赖的层级。 */
+@media (prefers-contrast: more) {
+    body { background: var(--bg-elevated); }
+    .liquid-glass,
+    .sidebar, .top-bar, .mobile-nav, .modal-content, .glass-modal,
+    .feature-card, .chat-layout, .grouped-list, .upload-box, .essay-detail-pane,
+    .result-summary, .admin-table-wrap, .voice-overlay-header, .voice-controls {
+        border-color: var(--label-3) !important;
+    }
+    .btn-tinted, .btn-gray {
+        border: 1px solid var(--label-3) !important;
+    }
+}
+
+/* ---------- 液态玻璃材质（Liquid Glass） ----------
+   用于悬浮层：侧栏 / 顶栏 / 底栏 / 弹窗 / 横幅 / 悬浮胶囊。
+   配方：高斯模糊 + 饱和提升 + 顶部镜面高光 + 内侧亮缘（上亮下暗模拟玻璃厚度）。 */
+.liquid-glass {
+    position: relative;
+    background: var(--glass-tint);
+    backdrop-filter: blur(28px) saturate(200%);
+    -webkit-backdrop-filter: blur(28px) saturate(200%);
+    border: 1px solid var(--glass-border);
+    box-shadow:
+        inset 0 1px 0 var(--glass-edge),
+        inset 0 -1px 0 var(--glass-bottom-shade),
+        var(--shadow-float);
+}
+.liquid-glass::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.06) 42%, transparent 70%);
+    opacity: 0.9;
+}
+
+/* ---------- 通用按钮（陶土主按钮 / 玻璃次按钮 / 文字按钮） ---------- */
+button {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: inherit;
+}
+button:active { opacity: 0.9; }
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 44px;
+    padding: 0 22px;
+    border-radius: var(--r-btn);
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    user-select: none;
+    transition: transform 0.2s var(--ease-paper), background-color 0.2s var(--ease),
+                color 0.2s var(--ease), box-shadow 0.2s var(--ease), opacity 0.2s var(--ease);
+}
+.btn:active { transform: translateY(1px); }
+.btn[disabled] { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+.btn-filled { background: var(--tint); color: #fdf9f6; box-shadow: 0 2px 10px rgba(201, 100, 66, 0.25); }
+.btn-filled:hover { background: var(--tint-press); }
+
+.btn-tinted {
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.30), rgba(255, 255, 255, 0.06) 50%), var(--tint-bg);
+    backdrop-filter: blur(16px) saturate(170%);
+    -webkit-backdrop-filter: blur(16px) saturate(170%);
+    color: var(--tint);
+    border: 1px solid var(--glass-border);
+    box-shadow: inset 0 1px 0 var(--glass-edge);
+}
+.btn-tinted:hover { filter: brightness(1.02); }
+
+.btn-plain { background: transparent; color: var(--tint); }
+.btn-plain:hover { background: var(--tint-bg); }
+
+.btn-gray {
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.30), rgba(255, 255, 255, 0.06) 50%), var(--bg-fill);
+    backdrop-filter: blur(16px) saturate(170%);
+    -webkit-backdrop-filter: blur(16px) saturate(170%);
+    color: var(--label);
+    border: 1px solid var(--glass-border);
+    box-shadow: inset 0 1px 0 var(--glass-edge);
+}
+.btn-gray:hover { background: var(--bg-fill-strong); }
+
+.btn-destructive { background: var(--red); color: #fff; }
+.btn-destructive-tinted { background: var(--red-bg); color: var(--red); }
+
+.btn-sm { min-height: 34px; padding: 0 14px; font-size: 14px; border-radius: 11px; }
+.btn-block { width: 100%; }
+
+.icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    background: var(--bg-fill);
+    color: var(--label-2);
+    font-size: 15px;
+    transition: background-color 0.2s var(--ease), color 0.2s var(--ease), transform 0.2s var(--ease-paper);
+}
+.icon-btn:hover { background: var(--bg-fill-strong); color: var(--label); }
+.icon-btn:active { transform: scale(0.94); }
+
+/* ---------- 通用输入（奶油内芯、聚焦陶土光晕） ---------- */
+input[type="text"], input[type="password"], input[type="search"],
+input[type="number"], textarea, select {
+    font-family: inherit;
+    font-size: 16px;
+    color: var(--label);
+    background: var(--bg-fill);
+    border: 1px solid var(--separator);
+    border-radius: var(--r-input);
+    padding: 0 14px;
+    min-height: 44px;
+    outline: none;
+    transition: border-color 0.2s var(--ease), background-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+input::placeholder, textarea::placeholder { color: var(--label-2); }
+input:focus, textarea:focus {
+    border-color: var(--tint);
+    box-shadow: 0 0 0 3px rgba(201, 100, 66, 0.12);
+}
+input[disabled], textarea[disabled] { opacity: 0.45; }
+
+/* ---------- 浮动标签输入（HIG 表单规范：标签常驻可读，聚焦/有值时上浮变小） ---------- */
+.float-field { position: relative; }
+.float-field input {
+    padding-top: 22px;
+    padding-bottom: 6px;
+}
+.float-field label {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    max-width: calc(100% - 30px);
+    font-size: 16px;
+    color: var(--label-2);
+    pointer-events: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: top 0.18s var(--ease), font-size 0.18s var(--ease), color 0.18s var(--ease);
+}
+.float-field input:focus + label,
+.float-field input:not(:placeholder-shown) + label {
+    top: 11px;
+    transform: none;
+    font-size: 11px;
+    color: var(--tint);
+}
+
+/* 分组列表 */
+.grouped-list {
+    background: var(--bg-elevated);
+    border: 1px solid var(--separator);
+    border-radius: var(--r-card);
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+}
+.grouped-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 48px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--separator);
+}
+.grouped-row:last-child { border-bottom: none; }
+
+/* 徽标 */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: var(--fs-footnote);
+    font-weight: 500;
+    line-height: 1.6;
+    background: var(--bg-fill);
+    color: var(--label-2);
+}
+.badge-blue { background: var(--blue-bg); color: var(--blue); }
+.badge-green { background: var(--green-bg); color: var(--green); }
+.badge-red { background: var(--red-bg); color: var(--red); }
+.badge-orange { background: var(--orange-bg); color: var(--orange); }
+
+/* 全局 Toast（纸张落下般轻盈） */
+.toast {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-16px);
+    background: var(--glass-bg-strong);
+    backdrop-filter: blur(28px) saturate(200%);
+    -webkit-backdrop-filter: blur(28px) saturate(200%);
+    color: var(--label);
+    padding: 12px 22px;
+    border-radius: 16px;
+    box-shadow: inset 0 1px 0 var(--glass-edge), var(--shadow-float);
+    border: 1px solid var(--glass-border);
+    z-index: 9999;
+    opacity: 0;
+    transition: opacity 0.3s var(--ease), transform 0.3s var(--ease-paper);
+    pointer-events: none;
+    font-size: var(--fs-subhead);
+    font-weight: 500;
+    max-width: min(86vw, 480px);
+    text-align: center;
+}
+.toast.error { color: var(--red); }
+.toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+}
+.toast.hide {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-16px);
+}
+
+/* ============================================================
+   登录页（文学沙龙的门厅：羊皮纸底 + 白卡 + 陶土印章式 logo）
+   ============================================================ */
+body.login-body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    gap: 16px;
+    background:
+        radial-gradient(820px 520px at 10% -10%, rgba(201, 100, 66, 0.10), transparent 62%),
+        radial-gradient(680px 460px at 108% 6%, rgba(120, 140, 93, 0.09), transparent 56%),
+        radial-gradient(520px 380px at 50% 118%, rgba(106, 155, 204, 0.07), transparent 60%),
+        var(--bg);
+}
+
+.lan-card {
+    width: 100%;
+    max-width: 560px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--separator);
+    border-radius: var(--r-card);
+    box-shadow: var(--shadow-card);
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.lan-card .lan-icon {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: 12px;
+    background: var(--blue-bg);
+    color: var(--blue);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+}
+.lan-card .lan-body { flex: 1; min-width: 0; }
+.lan-card .lan-title {
+    font-size: var(--fs-subhead);
+    font-weight: 500;
+    color: var(--label-2);
+}
+.lan-card .lan-ip-value {
+    font-family: var(--font-mono);
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--tint);
+    margin-top: 2px;
+    letter-spacing: -0.2px;
+    user-select: all;
+    word-break: break-all;
+}
+.lan-card .lan-hint {
+    margin-top: 3px;
+    font-size: var(--fs-caption);
+    color: var(--label-3);
+}
+
+.login-card {
+    width: 100%;
+    max-width: 560px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--separator);
+    border-radius: var(--r-sheet);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85), var(--shadow-card);
+    padding: 44px 40px 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.login-logo {
+    width: 78px;
+    height: 78px;
+    border-radius: 26px;
+    background: var(--tint);
+    color: #fdf9f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+    box-shadow: 0 8px 24px rgba(201, 100, 66, 0.28);
+}
+.login-logo svg { width: 42px; height: 42px; }
+.login-card h1 {
+    font-family: var(--font-serif);
+    font-size: var(--fs-large-title);
+    font-weight: var(--fw-large-title);
+    letter-spacing: var(--ls-large-title);
+    line-height: 1.2;
+    margin-bottom: 6px;
+    text-align: center;
+}
+.login-card .login-sub {
+    font-size: var(--fs-subhead);
+    color: var(--label-2);
+    margin-bottom: 28px;
+    text-align: center;
+}
+.login-form { width: 100%; display: flex; flex-direction: column; gap: 12px; }
+.login-form input { width: 100%; background: var(--bg-fill); }
+.login-form .btn { margin-top: 6px; height: 50px; font-size: 16px; border-radius: 16px; }
+.login-hint {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--separator);
+    font-size: var(--fs-footnote);
+    color: var(--label-3);
+    text-align: center;
+    line-height: 1.7;
+    width: 100%;
+}
+.login-footer {
+    font-size: var(--fs-caption);
+    color: var(--label-3);
+    text-align: center;
+}
+
+@media (max-width: 480px) {
+    .login-card { padding: 34px 22px 26px; }
+    .lan-card { padding: 12px 14px; }
+}

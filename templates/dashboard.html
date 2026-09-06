@@ -1,0 +1,86 @@
+{{define "dashboard"}}
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>主页 - MYClassroom 我的课堂</title>
+    <script>
+        (function(){try{var t=localStorage.getItem('vc-theme');if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();
+    </script>
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css?v=202608322">
+    <link rel="stylesheet" href="/static/css/style.css?v=202608322">
+    <link rel="stylesheet" href="/static/css/dashboard.css?v=202608322">
+</head>
+<body class="app-body">
+<div class="dashboard-container">
+    {{template "sidebar" .}}
+    <main class="main-content">
+        <header class="top-bar">
+            <div class="user-info">
+                <span class="page-name">主页</span>
+                <span class="role-badge">{{if eq .Role "teacher"}}教师{{else}}学生{{end}}</span>
+            </div>
+            <div class="header-actions">
+                <span class="last-login">上次登录：{{.LastLogin}}</span>
+            </div>
+        </header>
+        <section class="content-panel">
+            <div class="placeholder">
+                <h2>欢迎回来，{{.FullName}}</h2>
+                <p>选择下面的功能开始上课</p>
+                <div class="feature-grid">
+                    <!-- 液态玻璃功能磁贴：图标章 + 标题 + 一句话说明 -->
+                    <a href="/chat" style="text-decoration: none; color: inherit;">
+                        <div class="feature-card tile-terracotta">
+                            <span class="card-chip"><i class="fas fa-comment-dots"></i></span>
+                            <h3>聊天室</h3>
+                            <p>进入即时交流</p>
+                        </div>
+                    </a>
+                    {{if eq .Role "teacher"}}
+                    <a href="/admin/users" style="text-decoration: none; color: inherit;">
+                        <div class="feature-card tile-plum">
+                            <span class="card-chip"><i class="fas fa-users-gear"></i></span>
+                            <h3>班级管理</h3>
+                            <p>管理学生账号</p>
+                        </div>
+                    </a>
+                    {{end}}
+                    <a href="/essay" style="text-decoration: none; color: inherit;">
+                        <div class="feature-card tile-olive">
+                            <span class="card-chip"><i class="fas fa-pen-fancy"></i></span>
+                            <h3>作文批改</h3>
+                            <p>拍照识别 · AI 批改</p>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<!-- 彩蛋 -->
+<script>
+    (function() {
+        const secretCode = ['arrowup', 'arrowup', 'arrowdown', 'arrowdown', 'arrowleft', 'arrowright', 'arrowleft', 'arrowright', 'b', 'a'];
+        let inputIndex = 0;
+        window.addEventListener('keydown', function(e) {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            let key = e.key.toLowerCase();
+            if (key === secretCode[inputIndex]) {
+                inputIndex++;
+                if (inputIndex === secretCode.length) {
+                    window.location.href = '/about';
+                    inputIndex = 0;
+                }
+            } else {
+                inputIndex = 0;
+            }
+        });
+    })();
+</script>
+{{template "mobile_nav" .}}
+<div class="bottom-spacer"></div>
+</body>
+</html>
+{{end}}

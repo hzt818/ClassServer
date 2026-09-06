@@ -1,0 +1,131 @@
+{{define "cast"}}
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>课堂传屏 - MYClassroom</title>
+    <script>
+        (function(){try{var t=localStorage.getItem('vc-theme');if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();
+    </script>
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css?v=202608322">
+    <link rel="stylesheet" href="/static/css/style.css?v=202608322">
+    <link rel="stylesheet" href="/static/css/dashboard.css?v=202608322">
+</head>
+<body class="app-body">
+<div class="dashboard-container">
+    {{template "sidebar" .}}
+    <main class="main-content">
+        <header class="top-bar">
+            <div class="user-info">
+                <span class="page-name">课堂传屏</span>
+                <span class="role-badge">{{if eq .Role "teacher"}}教师{{else}}学生{{end}}</span>
+            </div>
+            <div class="notice-inline" id="castNotice">
+                <i class="fas fa-tower-broadcast"></i> <span id="castNoticeText">正在等待老师开启传屏…</span>
+            </div>
+        </header>
+        <section class="content-panel">
+            <div class="cast-live-wrap" id="castLiveWrap">
+                <!-- MJPEG 实时画面 -->
+                <img id="castImg" class="cast-img" alt="老师屏幕直播" style="display:none;">
+                <!-- 等待状态 -->
+                <div class="cast-waiting" id="castWaiting">
+                    <i class="fas fa-chalkboard-user"></i>
+                    <p>老师开启传屏后，这里会实时显示老师的大屏画面</p>
+                    <button class="pipe-btn" id="castRetryBtn" style="display:none;"><i class="fas fa-rotate"></i> 重新连接</button>
+                </div>
+            </div>
+            <div class="cast-controls">
+                <div class="filter-chip-group" id="tierGroup">
+                    <button data-tier="mobile" class="active"><i class="fas fa-feather"></i> 流畅（手机推荐）</button>
+                    <button data-tier="desktop"><i class="fas fa-image"></i> 高清</button>
+                </div>
+                <button class="pipe-btn" id="castFullscreenBtn"><i class="fas fa-expand"></i> 全屏</button>
+                <span class="pipeline-refresh-hint" id="castViewerInfo"></span>
+            </div>
+        </section>
+    </main>
+</div>
+{{template "mobile_nav" .}}
+<div class="bottom-spacer"></div>
+<script>
+    let tier = localStorage.getItem('castTier') || 'mobile';
+    let live = false;
+    let imgAttached = false;
+    let pollTimer = null;
+
+    const castImg = document.getElementById('castImg');
+    const castWaiting = document.getElementById('castWaiting');
+    const noticeText = document.getElementById('castNoticeText');
+    const viewerInfo = document.getElementById('castViewerInfo');
+    const retryBtn = document.getElementById('castRetryBtn');
+
+    document.querySelectorAll('#tierGroup button').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tier === tier);
+        btn.addEventListener('click', () => {
+            tier = btn.dataset.tier;
+            try { localStorage.setItem('castTier', tier); } catch (e) {}
+            document.querySelectorAll('#tierGroup button').forEach(b => b.classList.toggle('active', b === btn));
+            attachStream(); // 切换画质重新拉流
+        });
+    });
+
+    function attachStream() {
+        imgAttached = true;
+        castImg.style.display = 'block';
+        castWaiting.style.display = 'none';
+        // 时间戳避免浏览器缓存旧流
+        castImg.src = '/api/cast/live?tier=' + tier + '&t=' + Date.now();
+    }
+
+    function detachStream(reason) {
+        imgAttached = false;
+        castImg.removeAttribute('src');
+        castImg.style.display = 'none';
+        castWaiting.style.display = 'flex';
+        if (reason === 'ended') {
+            noticeText.textContent = '老师已停止传屏';
+            document.getElementById('castNotice').querySelector('i').className = 'fas fa-circle-pause';
+        }
+    }
+
+    castImg.addEventListener('error', () => {
+        // 流中断（老师停止/网络抖动）：标记断开并等状态轮询决定重连
+        if (imgAttached) detachStream('ended');
+    });
+
+    retryBtn.addEventListener('click', () => { pollStatus(); });
+
+    document.getElementById('castFullscreenBtn').addEventListener('click', () => {
+        const el = document.getElementById('castLiveWrap');
+        if (document.fullscreenElement) { document.exitFullscreen(); return; }
+        if (el.requestFullscreen) el.requestFullscreen();
+        else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    });
+
+    async function pollStatus() {
+        try {
+            const resp = await fetch('/api/cast/status');
+            const st = await resp.json();
+            const wasLive = live;
+            live = !!st.live;
+            viewerInfo.textContent = live && IS_TEACHER ? ('正在观看：' + st.viewers + ' 人') : '';
+            if (live) {
+                noticeText.textContent = '正在实时接收老师的大屏画面';
+                document.getElementById('castNotice').querySelector('i').className = 'fas fa-tower-broadcast live-dot';
+                if (!imgAttached) attachStream();
+                retryBtn.style.display = 'none';
+            } else {
+                if (wasLive || imgAttached) detachStream('ended');
+                else noticeText.textContent = '正在等待老师开启传屏…';
+            }
+        } catch (e) { /* 网络抖动时静默，下轮重试 */ }
+    }
+
+    const IS_TEACHER = {{if eq .Role "teacher"}}true{{else}}false{{end}};
+    pollStatus();
+    pollTimer = setInterval(pollStatus, 3000);
+</script>
+</body>
+</html>
+{{end}}

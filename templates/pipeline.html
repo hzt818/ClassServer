@@ -1,0 +1,474 @@
+{{define "pipeline"}}
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>批阅流水线 - MYClassroom</title>
+    <script>
+        (function(){try{var t=localStorage.getItem('vc-theme');if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();
+    </script>
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css?v=202608322">
+    <link rel="stylesheet" href="/static/css/style.css?v=202608322">
+    <link rel="stylesheet" href="/static/css/dashboard.css?v=202608322">
+</head>
+<body class="app-body">
+<!-- 磨砂玻璃弹窗 -->
+<div class="glass-modal-overlay" id="glassModal">
+    <div class="glass-modal">
+        <div class="modal-icon"><i class="fas fa-info-circle"></i></div>
+        <h3 id="modalTitle">提示</h3>
+        <p id="modalMessage">消息内容</p>
+        <div class="modal-actions" id="modalActions"></div>
+    </div>
+</div>
+
+<div class="dashboard-container">
+    {{template "sidebar" .}}
+    <main class="main-content">
+        <header class="top-bar">
+            <div class="user-info">
+                <span class="page-name">批阅流水线</span>
+                <span class="role-badge">教师</span>
+            </div>
+            <div class="notice-inline">
+                <i class="fas fa-circle-info"></i> 按提交顺序逐篇批阅：查看 AI 批改与批注图，满意即可标记为优秀作文供全班学习。
+            </div>
+        </header>
+        <section class="content-panel">
+            <!-- 页签：批阅队列 / 学生管理 -->
+            <div class="pipeline-tabs">
+                <button class="active" data-tab="queue"><i class="fas fa-bars-progress"></i> 批阅队列</button>
+                <button data-tab="students"><i class="fas fa-users"></i> 学生管理</button>
+            </div>
+
+            <!-- 批阅队列 -->
+            <div class="pipeline-panel active" id="panelQueue">
+                <div class="pipeline-filters">
+                    <div class="filter-chip-group" id="filterType">
+                        <button class="active" data-v="">全部类型</button>
+                        <button data-v="chinese">语文</button>
+                        <button data-v="english">英语</button>
+                        <button data-v="continuation">续写</button>
+                    </div>
+                    <div class="filter-chip-group" id="filterStatus">
+                        <button class="active" data-v="">全部状态</button>
+                        <button data-v="processing">批改中</button>
+                        <button data-v="done">已完成</button>
+                        <button data-v="excellent">优秀</button>
+                    </div>
+                    <span class="pipeline-refresh-hint"><i class="fas fa-rotate"></i> 每 5 秒自动刷新</span>
+                </div>
+                <div class="pipeline-queue" id="queueList">
+                    <div class="empty-hint">加载中...</div>
+                </div>
+            </div>
+
+            <!-- 学生管理 -->
+            <div class="pipeline-panel" id="panelStudents">
+                <div class="students-table-wrap">
+                    <table class="students-table">
+                        <thead>
+                            <tr><th>学生</th><th>账号</th><th>作文篇数</th><th>平均得分率</th><th>优秀篇数</th><th>最近提交</th></tr>
+                        </thead>
+                        <tbody id="studentsBody">
+                            <tr><td colspan="6" class="empty-hint">加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<!-- 批阅详情弹窗 -->
+<div class="modal-overlay" id="detailModal">
+    <div class="modal-content essay-detail-modal">
+        <button class="close-btn" id="modalClose">&times;</button>
+        <div class="modal-title" id="detailTitle">批阅详情</div>
+        <div class="detail-modal-actions" id="detailActions"></div>
+        <div class="modal-body essay-detail-grid" id="detailBody"></div>
+        <div class="detail-comment-box" id="detailComment"></div>
+    </div>
+</div>
+
+<!-- 编辑成绩内联弹窗 -->
+<div class="score-edit-popover" id="scoreEditPopover">
+    <div class="popover-header"><i class="fas fa-pen"></i> 编辑成绩</div>
+    <div class="popover-body">
+        <input type="number" id="scoreEditInput" class="score-edit-input" min="0" step="0.5" placeholder="分数">
+        <span class="popover-max" id="scoreEditMax">/ 满分</span>
+    </div>
+    <div class="popover-footer">
+        <button class="popover-cancel" id="scoreEditCancel">取消</button>
+        <button class="popover-save" id="scoreEditSave">保存</button>
+    </div>
+</div>
+
+<script>
+    let jobs = [];
+    let filterType = '';
+    let filterStatus = '';
+    let activeTab = 'queue';
+    let currentJob = null;
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text == null ? '' : String(text);
+        return div.innerHTML;
+    }
+
+    function showGlassModal(title, message, buttons) {
+        return new Promise((resolve) => {
+            const overlay = document.getElementById('glassModal');
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalMessage').textContent = message;
+            const actions = document.getElementById('modalActions');
+            actions.innerHTML = '';
+            buttons.forEach((btn) => {
+                const b = document.createElement('button');
+                b.textContent = btn.label;
+                b.className = btn.class || 'btn-primary';
+                b.addEventListener('click', () => { closeOverlay(overlay); resolve(btn.value); });
+                actions.appendChild(b);
+            });
+            overlay.classList.add('active');
+        });
+    }
+
+    const TYPE_LABEL = { chinese: '语文作文', english: '应用文', continuation: '读后续写' };
+    function typeLabel(t) { return TYPE_LABEL[t] || (t || '作文'); }
+
+    async function loadQueue() {
+        try {
+            const resp = await fetch('/api/essay/pipeline');
+            jobs = await resp.json();
+            if (activeTab === 'queue') renderQueue();
+        } catch (e) { console.error('队列加载失败:', e); }
+    }
+
+    async function loadStudents() {
+        try {
+            const resp = await fetch('/api/essay/students');
+            const stats = await resp.json();
+            renderStudents(stats);
+        } catch (e) { console.error('学生统计加载失败:', e); }
+    }
+
+    function renderQueue() {
+        const list = document.getElementById('queueList');
+        const filtered = jobs.filter(j => {
+            if (filterType && j.type !== filterType) return false;
+            if (filterStatus === 'excellent') return j.excellent;
+            if (filterStatus && j.status !== filterStatus) return false;
+            return true;
+        });
+        if (filtered.length === 0) {
+            list.innerHTML = '<div class="empty-hint">暂无批改任务（学生提交或教师上传后自动进入队列）</div>';
+            return;
+        }
+        let html = '';
+        filtered.forEach((j) => {
+            const name = j.student_name || j.username || ('#' + j.id);
+            let statusHtml = '';
+            if (j.status === 'processing') statusHtml = '<span class="job-status processing">批改中</span>';
+            else if (j.status === 'paused') statusHtml = '<span class="job-status pending">已暂停</span>';
+            else if (j.status === 'error') statusHtml = '<span class="job-status pending">异常</span>';
+            else statusHtml = '<span class="job-status done">已完成</span>';
+            const score = (j.status === 'done' && j.score_text && j.score_text !== '--')
+                ? `<span class="job-score">${escapeHtml(j.score_text)}<small>/${j.max_score}</small></span>` : '';
+            const star = j.excellent ? '<span class="excellent-star" title="优秀作文"><i class="fas fa-star"></i></span>' : '';
+            const pauseBtn = j.status === 'processing'
+                ? `<button class="pipe-btn" data-act="pause" data-id="${j.id}"><i class="fas fa-pause"></i> 暂停</button>` : '';
+            const exportOn = j.status === 'done';
+            html += `
+                <div class="pipeline-item${j.excellent ? ' is-excellent' : ''}" data-id="${j.id}">
+                    <div class="pipeline-item-main" data-act="detail" data-id="${j.id}">
+                        <div class="pipeline-item-title">${star}${j.short_comment ? '<i class="fas fa-comment-dots short-comment-icon" title="已有教师短评"></i>' : ''}${escapeHtml(name)}<span class="job-type-chip">${typeLabel(j.type)}</span><span class="pipeline-item-subject">${escapeHtml(j.title || '未识别题目')}</span></div>
+                        <div class="pipeline-item-meta">${statusHtml}${score}</div>
+                    </div>
+                    <div class="pipeline-item-actions">
+                        ${pauseBtn}
+                        <button class="pipe-btn" data-act="detail" data-id="${j.id}"><i class="fas fa-eye"></i> 详情</button>
+                        <button class="pipe-btn star${j.excellent ? ' on' : ''}" data-act="excellent" data-id="${j.id}"><i class="fas fa-star"></i> ${j.excellent ? '取消优秀' : '标为优秀'}</button>
+                        <button class="pipe-btn" data-act="regrade" data-id="${j.id}" ${j.status === 'processing' ? 'disabled' : ''}><i class="fas fa-rotate"></i> 重新批改</button>
+                        <button class="pipe-btn" data-act="score" data-id="${j.id}" ${exportOn ? '' : 'disabled'}><i class="fas fa-pen"></i> 成绩</button>
+                        <button class="pipe-btn" data-act="docx" data-id="${j.id}" ${exportOn ? '' : 'disabled'}><i class="fas fa-file-word"></i> docx</button>
+                        <button class="pipe-btn" data-act="pdf" data-id="${j.id}" ${exportOn ? '' : 'disabled'}><i class="fas fa-file-pdf"></i> PDF</button>
+                    </div>
+                </div>`;
+        });
+        list.innerHTML = html;
+
+        list.querySelectorAll('.pipe-btn, .pipeline-item-main').forEach(el => {
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = parseInt(el.dataset.id);
+                const j = jobs.find(x => x.id === id);
+                if (!j) return;
+                const act = el.dataset.act;
+                if (act === 'detail') openDetail(j);
+                else if (act === 'pause') pauseJob(j);
+                else if (act === 'excellent') toggleExcellent(j);
+                else if (act === 'score') openScoreEdit(j);
+                else if (act === 'regrade') regradeJob(j);
+                else if (act === 'docx') exportJob(j, 'docx');
+                else if (act === 'pdf') exportJob(j, 'pdf');
+            });
+        });
+    }
+
+    function renderStudents(stats) {
+        const body = document.getElementById('studentsBody');
+        if (!stats.length) {
+            body.innerHTML = '<tr><td colspan="6" class="empty-hint">暂无学生账号（可在「账号管理」中创建）</td></tr>';
+            return;
+        }
+        let html = '';
+        stats.forEach(s => {
+            const name = s.full_name || s.username;
+            const avg = (s.avg_score == null) ? '--' : (Math.round(s.avg_score * 10) / 10) + '%';
+            const last = (s.last_submitted || '').replace('T', ' ').substring(0, 16) || '--';
+            html += `<tr>
+                <td>${escapeHtml(name)}</td>
+                <td>${escapeHtml(s.username)}</td>
+                <td>${s.essay_count}</td>
+                <td>${avg}</td>
+                <td>${s.excellent_count > 0 ? '<i class="fas fa-star excellent-star-inline"></i> ' : ''}${s.excellent_count}</td>
+                <td>${escapeHtml(last)}</td>
+            </tr>`;
+        });
+        body.innerHTML = html;
+    }
+
+    // ----- 详情弹窗 -----
+    function openDetail(j) {
+        currentJob = j;
+        const name = j.student_name || j.username || ('#' + j.id);
+        document.getElementById('detailTitle').textContent = name + ' · ' + typeLabel(j.type);
+        const imageHtml = j.has_image
+            ? `<img src="/api/essay/jobs/${j.id}/image" alt="学生作文原图" loading="lazy">`
+            : `<div class="pane-empty">无原图</div>`;
+        let annotatedHtml = '';
+        if (j.annotated_path) {
+            annotatedHtml = `
+            <div class="essay-detail-pane annotated-pane">
+                <div class="pane-title"><i class="fas fa-highlighter"></i> AI 批注图（红=错误 绿=好句 橙=可提升）</div>
+                <div class="pane-body"><img src="/api/essay/jobs/${j.id}/annotated" alt="AI 批注图" loading="lazy"></div>
+            </div>`;
+        }
+        const feedbackHtml = j.status === 'done'
+            ? escapeHtml('（批改详情请点击下方查看完整报告导出，此处展示批注要点）')
+            : '<span class="pane-empty">正在批改，内容实时更新...</span>';
+        document.getElementById('detailBody').innerHTML = `
+            <div class="essay-detail-pane image-pane">
+                <div class="pane-title"><i class="fas fa-image"></i> 学生作文原图</div>
+                <div class="pane-body">${imageHtml}</div>
+            </div>
+            ${annotatedHtml}
+            <div class="essay-detail-pane">
+                <div class="pane-title"><i class="fas fa-check-circle"></i> 批改状态</div>
+                <div class="pane-body">${feedbackHtml}</div>
+            </div>`;
+        const commentBox = document.getElementById('detailComment');
+        commentBox.style.display = 'block';
+        commentBox.innerHTML = `
+            ${j.teacher_comment ? `<div class="pane-title"><i class="fas fa-award"></i> 名师点评</div><div class="comment-text">${escapeHtml(j.teacher_comment)}</div>` : ''}
+            <div class="pane-title" style="margin-top:10px;"><i class="fas fa-comment-dots"></i> 教师短评（可选，留空则报告不显示）</div>
+            <textarea id="shortCommentInput" class="short-comment-input" rows="3" maxlength="300" placeholder="写一句给这位学生的鼓励或提醒…">${escapeHtml(j.short_comment || '')}</textarea>
+            <div class="short-comment-actions">
+                <button class="pipe-btn" id="shortCommentSave"><i class="fas fa-check"></i> 保存短评</button>
+                <button class="pipe-btn" id="shortCommentClear"><i class="fas fa-xmark"></i> 清除</button>
+            </div>`;
+        document.getElementById('shortCommentSave').addEventListener('click', () => saveShortComment(j, false));
+        document.getElementById('shortCommentClear').addEventListener('click', () => saveShortComment(j, true));
+
+        // 弹窗内操作
+        const actions = document.getElementById('detailActions');
+        actions.innerHTML = '';
+        const addBtn = (label, icon, fn, disabled) => {
+            const b = document.createElement('button');
+            b.className = 'pipe-btn';
+            b.innerHTML = `<i class="fas ${icon}"></i> ${label}`;
+            b.disabled = !!disabled;
+            b.addEventListener('click', fn);
+            actions.appendChild(b);
+        };
+        addBtn('标为优秀', 'fa-star', () => toggleExcellent(j), j.status !== 'done');
+        addBtn('编辑成绩', 'fa-pen', () => openScoreEdit(j), j.status !== 'done');
+        addBtn('导出 docx', 'fa-file-word', () => exportJob(j, 'docx'), j.status !== 'done');
+        addBtn('导出 PDF', 'fa-file-pdf', () => exportJob(j, 'pdf'), j.status !== 'done');
+        document.getElementById('detailModal').classList.add('active');
+    }
+
+    function closeDetail() {
+        closeOverlay(document.getElementById('detailModal'));
+        currentJob = null;
+    }
+    document.getElementById('modalClose').addEventListener('click', closeDetail);
+    document.getElementById('detailModal').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) closeDetail();
+    });
+
+    // ----- 操作 -----
+    async function pauseJob(j) {
+        const ok = await showGlassModal('确认暂停', `暂停「${j.student_name || j.username}」的批改任务？`, [
+            { label: '取消', value: false, class: 'btn-secondary' },
+            { label: '暂停', value: true, class: 'btn-danger' }
+        ]);
+        if (!ok) return;
+        try {
+            const resp = await fetch(`/api/essay/jobs/${j.id}/pause`, { method: 'POST' });
+            if (!resp.ok) throw new Error('暂停失败');
+            await loadQueue();
+        } catch (e) { showGlassModal('失败', e.message, [{ label: '知道了', value: true }]); }
+    }
+
+    async function regradeJob(j) {
+        const name = j.student_name || j.username || ('#' + j.id);
+        const ok = await showGlassModal('重新批改', `为「${name}」的这篇作文重新跑一次 AI 批改？将生成一条新记录（旧记录保留可对照），并按最新评分标准补齐升格指导与全文升格范文。`, [
+            { label: '取消', value: false, class: 'btn-secondary' },
+            { label: '重新批改', value: true }
+        ]);
+        if (!ok) return;
+        try {
+            const resp = await fetch(`/api/essay/jobs/${j.id}/regrade`, { method: 'POST' });
+            const data = await resp.json();
+            if (!resp.ok || !data.ok) throw new Error(data.error || '操作失败');
+            await loadQueue();
+        } catch (e) { showGlassModal('失败', e.message, [{ label: '知道了', value: true }]); }
+    }
+
+    async function toggleExcellent(j) {
+        try {
+            const resp = await fetch(`/api/essay/jobs/${j.id}/excellent`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ excellent: !j.excellent })
+            });
+            const data = await resp.json();
+            if (!resp.ok || !data.ok) throw new Error(data.error || '操作失败');
+            j.excellent = data.excellent;
+            renderQueue();
+            if (currentJob && currentJob.id === j.id) openDetail(j);
+        } catch (e) { showGlassModal('失败', e.message, [{ label: '知道了', value: true }]); }
+    }
+
+    async function saveShortComment(j, clear) {
+        const val = clear ? '' : (document.getElementById('shortCommentInput')?.value || '').trim();
+        try {
+            const resp = await fetch(`/api/essay/jobs/${j.id}/short-comment`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ comment: val })
+            });
+            const data = await resp.json();
+            if (!resp.ok || !data.ok) throw new Error(data.error || '保存失败');
+            j.short_comment = data.comment;
+            renderQueue();
+            showGlassModal('已保存', val ? '教师短评已保存，将随批改报告一并导出。' : '已清除该篇短评。');
+        } catch (e) { showGlassModal('失败', e.message, [{ label: '知道了', value: true }]); }
+    }
+
+    // ----- 编辑成绩 -----
+    const scoreEditPopover = document.getElementById('scoreEditPopover');
+    const scoreEditInput = document.getElementById('scoreEditInput');
+    let scoreJob = null;
+    function openScoreEdit(j) {
+        scoreJob = j;
+        document.getElementById('scoreEditMax').textContent = '/ ' + j.max_score;
+        scoreEditInput.value = j.score_text && j.score_text !== '--' ? j.score_text : '';
+        scoreEditInput.max = j.max_score;
+        scoreEditPopover.classList.add('show');
+        setTimeout(() => scoreEditInput.focus(), 50);
+    }
+    function closeScoreEdit() { scoreEditPopover.classList.remove('show'); scoreJob = null; }
+    document.getElementById('scoreEditCancel').addEventListener('click', closeScoreEdit);
+    document.getElementById('scoreEditSave').addEventListener('click', async () => {
+        if (!scoreJob) return;
+        const val = scoreEditInput.value.trim();
+        const num = parseFloat(val);
+        if (isNaN(num) || num < 0 || num > scoreJob.max_score) {
+            showGlassModal('无效分数', `请输入 0 到 ${scoreJob.max_score} 之间的分数`, [{ label: '知道了', value: true }]);
+            return;
+        }
+        try {
+            const resp = await fetch(`/api/essay/jobs/${scoreJob.id}/score`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ score: String(num) })
+            });
+            if (!resp.ok) throw new Error('保存失败');
+            scoreJob.score_text = String(num);
+            scoreJob.teacher_edited = true;
+            closeScoreEdit();
+            renderQueue();
+        } catch (e) { showGlassModal('失败', e.message, [{ label: '知道了', value: true }]); }
+    });
+    document.addEventListener('click', (e) => {
+        if (scoreEditPopover.classList.contains('show') && !scoreEditPopover.contains(e.target)) closeScoreEdit();
+    });
+
+    // ----- 导出 -----
+    async function exportJob(j, format) {
+        try {
+            const resp = await fetch('/api/essay/export', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: [j.id], format })
+            });
+            if (!resp.ok) {
+                const data = await resp.json().catch(() => ({}));
+                throw new Error(data.error || '导出失败');
+            }
+            const blob = await resp.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const name = j.student_name || j.username || ('学生' + j.id);
+            a.download = `${name}_批改报告.${format}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            showGlassModal('导出失败', e.message, [{ label: '知道了', value: true }]);
+        }
+    }
+
+    // ----- 筛选 & 页签 -----
+    function bindFilter(id, setter) {
+        const group = document.getElementById(id);
+        group.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', () => {
+                group.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                setter(btn.dataset.v);
+                renderQueue();
+            });
+        });
+    }
+    bindFilter('filterType', v => filterType = v);
+    bindFilter('filterStatus', v => filterStatus = v);
+
+    document.querySelectorAll('.pipeline-tabs button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.pipeline-tabs button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            activeTab = btn.dataset.tab;
+            document.getElementById('panelQueue').classList.toggle('active', activeTab === 'queue');
+            document.getElementById('panelStudents').classList.toggle('active', activeTab === 'students');
+            if (activeTab === 'students') loadStudents(); else loadQueue();
+        });
+    });
+
+    // ----- 启动 -----
+    loadQueue();
+    setInterval(() => {
+        if (activeTab === 'queue' && !document.getElementById('detailModal').classList.contains('active')) loadQueue();
+    }, 5000);
+</script>
+{{template "mobile_nav" .}}
+<div class="bottom-spacer"></div>
+</body>
+</html>
+{{end}}

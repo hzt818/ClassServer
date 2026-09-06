@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>注册 - MYClassroom · 我的课堂</title>
+    <link rel="stylesheet" href="/static/css/style.css?v=202608322">
+    <style>
+        /* 注册页：与登录页同一液态玻璃卡片体系 */
+        .role-seg {
+            display: flex;
+            gap: 4px;
+            width: 100%;
+            padding: 4px;
+            background: var(--bg-fill);
+            border-radius: var(--r-btn);
+            margin-bottom: 16px;
+        }
+        .role-seg button {
+            flex: 1;
+            min-height: 40px;
+            border: none;
+            border-radius: var(--r-btn);
+            background: transparent;
+            color: var(--label-2);
+            font-size: var(--fs-body);
+            font-weight: 500;
+            transition: background-color 0.2s var(--ease), color 0.2s var(--ease), box-shadow 0.25s var(--ease);
+        }
+        .role-seg button.active {
+            background: var(--bg-elevated);
+            color: var(--tint);
+            font-weight: 600;
+            box-shadow: 0 1px 3px rgba(74, 60, 42, 0.10);
+        }
+        .cert-note {
+            font-size: var(--fs-caption);
+            color: var(--label-3);
+            line-height: 1.6;
+            text-align: center;
+            margin-top: 10px;
+        }
+        .cert-step-title {
+            font-family: var(--font-serif);
+            font-size: var(--fs-title3);
+            font-weight: var(--fw-title2);
+            color: var(--label);
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        .cert-step-sub {
+            font-size: var(--fs-footnote);
+            color: var(--label-2);
+            text-align: center;
+            line-height: 1.7;
+            margin-bottom: 16px;
+        }
+        .reg-link {
+            color: var(--tint);
+            font-weight: 500;
+            text-decoration: none;
+        }
+        .reg-link:hover { text-decoration: underline; }
+        #doneStep .done-icon {
+            width: 64px; height: 64px;
+            margin: 4px auto 14px;
+            border-radius: 50%;
+            background: var(--green-bg);
+            color: var(--green);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 30px;
+        }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body class="login-body">
+
+<!-- Toast 容器 -->
+<div id="toast" class="toast"></div>
+
+<!-- 注册卡片 -->
+<div class="login-card">
+    <h1>注册新账号</h1>
+    {{if .AlipayRequired}}
+    <p class="login-sub">学生注册后即可登录；教师需完成支付宝实名认证</p>
+    {{else}}
+    <p class="login-sub">学生注册后即可登录；教师注册无需实名认证</p>
+    {{end}}
+
+    <!-- 第一步：填写信息 -->
+    <div id="infoStep" style="width: 100%;">
+        <div class="role-seg" id="roleSeg">
+            <button type="button" data-role="teacher" class="active">我是教师</button>
+            <button type="button" data-role="student">我是学生</button>
+        </div>
+        <form id="regForm" class="login-form" autocomplete="off">
+            <div class="float-field">
+                <input type="text" id="fullName" placeholder=" " maxlength="30" required aria-label="姓名">
+                <label for="fullName">姓名</label>
+            </div>
+            <div class="float-field">
+                <input type="text" id="username" placeholder=" " maxlength="20" required aria-label="用户名（字母开头，3-20 位）" title="字母开头，3-20 位字母/数字/下划线">
+                <label for="username">用户名（字母开头，3-20 位）</label>
+            </div>
+            <div class="float-field">
+                <input type="password" id="password" placeholder=" " maxlength="64" required aria-label="密码（至少 6 位）" title="至少 6 位">
+                <label for="password">密码（至少 6 位）</label>
+            </div>
+            {{if .AlipayRequired}}
+            <div id="teacherFields" style="display: contents;">
+                <div class="float-field">
+                    <input type="text" id="realName" placeholder=" " maxlength="30" aria-label="真实姓名（与身份证一致）">
+                    <label for="realName">真实姓名（与身份证一致）</label>
+                </div>
+                <div class="float-field">
+                    <input type="text" id="certNo" placeholder=" " maxlength="18" aria-label="身份证号（用于支付宝实名认证）">
+                    <label for="certNo">身份证号（用于支付宝实名认证）</label>
+                </div>
+            </div>
+            <p class="cert-note" id="certNote">身份证号仅用于支付宝实名认证核验（HTTPS 直传支付宝），本系统不保存身份证号。</p>
+            <button type="submit" class="btn btn-filled btn-block" id="submitBtn">下一步：实名认证</button>
+            {{else}}
+            <div id="teacherFields" style="display: contents;"></div>
+            <p class="cert-note" id="certNote" style="display: none;"></p>
+            <button type="submit" class="btn btn-filled btn-block" id="submitBtn">注册</button>
+            {{end}}
+        </form>
+    </div>
+
+    <!-- 第二步：支付宝实名认证 -->
+    <div id="certStep" style="display: none; width: 100%;">
+        <p class="cert-step-title">支付宝实名认证</p>
+        <p class="cert-step-sub" id="certTip">将打开支付宝认证页面，按提示完成人脸/证件验证后回到本页，系统会自动确认结果。</p>
+        <a id="certLink" class="btn btn-filled btn-block hidden" href="#" target="_blank" rel="noopener">打开支付宝认证页</a>
+        <button id="mockBtn" class="btn btn-tinted btn-block hidden" type="button">模拟完成认证（开发模式）</button>
+        <button id="checkBtn" class="btn btn-plain btn-block" type="button">我已完成认证，检查结果</button>
+        <p class="cert-note" id="certStatus">等待完成认证…（每 3 秒自动检查一次）</p>
+    </div>
+
+    <!-- 第三步：完成 -->
+    <div id="doneStep" style="display: none; width: 100%;">
+        <div class="done-icon">✓</div>
+        <p class="cert-step-title">注册成功</p>
+        <p class="cert-step-sub" id="doneText">账号已激活，返回登录即可开始使用。</p>
+        <a class="btn btn-filled btn-block" href="/login">前往登录</a>
+    </div>
+
+    <p class="login-hint">
+        已有账号？<a class="reg-link" href="/login">返回登录</a><br>
+        教师账号实名认证由支付宝提供（alipay.user.certify.open）
+    </p>
+</div>
+
+<p class="login-footer">MYClassroom · 我的课堂</p>
+
+<script>
+    (function() {
+        var role = 'teacher';
+        var regToken = '';
+        var pollTimer = null;
+        // 服务是否要求实名认证（由后端注入：配置了支付宝密钥或开启 mock 时为 true）
+        var ALIPAY_REQUIRED = {{if .AlipayRequired}}true{{else}}false{{end}};
+
+        var toast = document.getElementById('toast');
+        function showToast(msg, isError) {
+            toast.textContent = msg;
+            toast.classList.toggle('error', !!isError);
+            toast.classList.add('show');
+            setTimeout(function() { toast.classList.remove('show'); }, 3200);
+        }
+
+        // 角色切换：仅当服务要求实名认证时，教师才需要填写认证字段
+        document.getElementById('roleSeg').addEventListener('click', function(e) {
+            var btn = e.target.closest('button');
+            if (!btn) return;
+            role = btn.dataset.role;
+            Array.prototype.forEach.call(this.querySelectorAll('button'), function(b) {
+                b.classList.toggle('active', b === btn);
+            });
+            var showCert = ALIPAY_REQUIRED && role === 'teacher';
+            document.getElementById('teacherFields').style.display = showCert ? 'contents' : 'none';
+            document.getElementById('certNote').style.display = showCert ? 'block' : 'none';
+            document.getElementById('submitBtn').textContent =
+                (ALIPAY_REQUIRED && role === 'teacher') ? '下一步：实名认证' : '注册';
+        });
+
+        // 第一步：提交注册
+        document.getElementById('regForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var body = {
+                username: document.getElementById('username').value.trim(),
+                password: document.getElementById('password').value,
+                full_name: document.getElementById('fullName').value.trim(),
+                role: role,
+                real_name: (document.getElementById('realName') || { value: '' }).value.trim(),
+                cert_no: (document.getElementById('certNo') || { value: '' }).value.trim()
+            };
+            var submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            fetch('/api/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            }).then(function(res) { return res.json().then(function(j) { return { status: res.status, j: j }; }); })
+              .then(function(r) {
+                submitBtn.disabled = false;
+                if (r.status !== 200 || !r.j.ok) {
+                    showToast(r.j.error || '注册失败，请重试', true);
+                    return;
+                }
+                if (!r.j.need_certify) {
+                    showDone('学生账号「' + body.username + '」注册成功，返回登录即可使用。');
+                    return;
+                }
+                regToken = r.j.reg_token;
+                startCertify();
+              })
+              .catch(function() { submitBtn.disabled = false; showToast('网络错误，请重试', true); });
+        });
+
+        // 第二步：发起支付宝认证
+        function startCertify() {
+            document.getElementById('infoStep').style.display = 'none';
+            document.getElementById('certStep').style.display = 'block';
+            fetch('/api/certify/start?token=' + encodeURIComponent(regToken))
+                .then(function(res) { return res.json().then(function(j) { return { status: res.status, j: j }; }); })
+                .then(function(r) {
+                    if (r.status !== 200 || !r.j.ok) {
+                        showToast(r.j.error || '发起认证失败', true);
+                        document.getElementById('certStatus').textContent = r.j.error || '发起认证失败';
+                        return;
+                    }
+                    if (r.j.mock) {
+                        var mockBtn = document.getElementById('mockBtn');
+                        mockBtn.classList.remove('hidden');
+                        document.getElementById('certTip').textContent =
+                            '当前为本地模拟认证模式（未配置支付宝密钥）。点击下方按钮模拟完成认证；接入真实密钥后将跳转支付宝。';
+                    } else {
+                        var link = document.getElementById('certLink');
+                        link.href = r.j.certify_url;
+                        link.classList.remove('hidden');
+                    }
+                    startPolling();
+                })
+                .catch(function() { showToast('网络错误，请重试', true); });
+        }
+
+        document.getElementById('mockBtn').addEventListener('click', function() { checkOnce(); });
+        document.getElementById('checkBtn').addEventListener('click', function() { checkOnce(); });
+
+        function startPolling() {
+            if (pollTimer) clearInterval(pollTimer);
+            pollTimer = setInterval(checkOnce, 3000);
+        }
+
+        function checkOnce() {
+            if (!regToken) return;
+            fetch('/api/certify/query?token=' + encodeURIComponent(regToken))
+                .then(function(res) { return res.json().then(function(j) { return { status: res.status, j: j }; }); })
+                .then(function(r) {
+                    if (r.status === 200 && r.j.passed) {
+                        if (pollTimer) clearInterval(pollTimer);
+                        showDone('实名认证通过，教师账号「' + r.j.username + '」已激活，返回登录即可使用。');
+                    } else if (r.status === 200) {
+                        document.getElementById('certStatus').textContent = '支付宝侧尚未返回认证结果…';
+                    } else if (r.j && r.j.error) {
+                        document.getElementById('certStatus').textContent = r.j.error;
+                    }
+                })
+                .catch(function() {});
+        }
+
+        function showDone(text) {
+            document.getElementById('infoStep').style.display = 'none';
+            document.getElementById('certStep').style.display = 'none';
+            document.getElementById('doneStep').style.display = 'block';
+            document.getElementById('doneText').textContent = text;
+        }
+    })();
+</script>
+</body>
+</html>

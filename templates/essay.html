@@ -1,0 +1,2111 @@
+{{define "essay"}}
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>作文批改 - MYClassroom</title>
+    <script>
+        (function(){try{var t=localStorage.getItem('vc-theme');if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();
+    </script>
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css?v=202608324">
+    <link rel="stylesheet" href="/static/css/style.css?v=202608324">
+    <link rel="stylesheet" href="/static/css/dashboard.css?v=202608324">
+</head>
+<body class="app-body">
+<!-- 磨砂玻璃弹窗 -->
+<div class="glass-modal-overlay" id="glassModal">
+    <div class="glass-modal">
+        <div class="modal-icon" id="modalIcon"><i class="fas fa-info-circle"></i></div>
+        <h3 id="modalTitle">提示</h3>
+        <p id="modalMessage">消息内容</p>
+        <div class="modal-actions" id="modalActions"></div>
+    </div>
+</div>
+
+<!-- 作文批改提示 -->
+<div class="essay-toast-banner" id="essayToastBanner">
+    <i class="fas fa-circle-info"></i>
+    <span class="essay-toast-text" id="essayToastText"></span>
+    <button class="essay-toast-close" id="essayToastClose" title="关闭"><i class="fas fa-times"></i></button>
+</div>
+
+<div class="dashboard-container">
+    {{template "sidebar" .}}
+    <main class="main-content">
+        <header class="top-bar">
+            <div class="user-info">
+                <span class="page-name">作文批改</span>
+                <span class="role-badge">{{if eq .Role "teacher"}}教师{{else}}学生{{end}}</span>
+            </div>
+            <div class="notice-inline">
+                <i class="fas fa-info-circle"></i> 提示：AI可能会误认卷面上的涂改痕迹，请在批改前手动删除上方文本框中的废弃文字。
+            </div>
+            <div class="header-actions">
+                <span class="last-login">上次登录：{{.LastLogin}}</span>
+            </div>
+        </header>
+        <section class="content-panel">
+            <div class="essay-container">
+                <div class="essay-actions">
+                    <button class="active" id="btnChinese"><i class="fas fa-language"></i> <span class="full-text">语文作文</span><span class="short-text">语文</span></button>
+                    <button id="btnEnglish"><i class="fas fa-globe-asia"></i> <span class="full-text">英语作文</span><span class="short-text">英语</span></button>
+                    <button id="btnContinuation"><i class="fas fa-feather-alt"></i> <span class="full-text">读后续写</span><span class="short-text">续写</span></button>
+                </div>
+
+                <!-- 批改设置：批改温度 + 自定义满分（按类型持久化） -->
+                <div class="grading-settings">
+                    <div class="grading-row grading-temp-row">
+                        <span class="grading-label">批改温度</span>
+                        <span class="grading-temp-endpoint">严格</span>
+                        <input type="range" class="grading-temp-slider" id="tempSlider" min="0" max="1" step="0.1" value="0.5">
+                        <span class="grading-temp-endpoint">自由</span>
+                        <span class="grading-temp-value" id="tempValue">0.5</span>
+                        <span class="grading-hint" id="tempHint">标准：客观反映实际水平</span>
+                    </div>
+                    <div class="grading-row">
+                        <span class="grading-label">满分</span>
+                        <input type="number" id="maxScoreInput" min="1" max="200" class="grading-score-input">
+                        <span class="grading-hint" id="maxScoreHint">分</span>
+                    </div>
+                </div>
+
+                <div class="upload-grid">
+                    <div class="upload-box" id="titleUpload">
+                        <i class="fas fa-file-alt icon"></i>
+                        <div class="hint">拖动或点击上传题目图片</div>
+                        <div class="result-preview" id="titlePreview">未识别</div>
+                        <div class="progress-bar" id="titleProgress"><div class="bar"></div></div>
+                        <input type="file" class="file-input" accept="image/*">
+                    </div>
+                    <div class="upload-box" id="essayUpload">
+                        <i class="fas fa-pen-fancy icon"></i>
+                        <div class="hint">拖动或点击上传作文图片（支持多文件）</div>
+                        <div class="sub-hint">上传时仍可以继续上传作文</div>
+                        <div class="result-preview" id="essayPreview">未识别</div>
+                        <div class="progress-bar" id="essayProgress"><div class="bar"></div></div>
+                        <input type="file" class="file-input" accept="image/*" multiple>
+                        <input type="file" id="essayCameraInput" class="camera-input" accept="image/*" capture="environment">
+                        <button type="button" class="camera-btn" id="essayCameraBtn"><i class="fas fa-camera"></i> <span class="full-text">拍照上传</span><span class="short-text">拍照</span></button>
+                    </div>
+                </div>
+
+                <!-- AI 示范范文（题目识别后自动生成） -->
+                <div class="model-essay-box" id="modelEssayBox" style="display: none;">
+                    <div class="model-essay-header">
+                        <button type="button" class="model-essay-toggle" id="modelEssayToggle" title="折叠/展开范文" aria-expanded="true">
+                            <i class="fas fa-chevron-down" id="modelEssayChevron"></i>
+                            <span class="model-essay-title"><i class="fas fa-wand-magic-sparkles"></i> AI 示范范文</span>
+                        </button>
+                        <div class="model-essay-actions">
+                            <button type="button" class="model-essay-btn" id="modelEssayRegen" title="重新生成"><i class="fas fa-rotate"></i> 重新生成</button>
+                            <button type="button" class="model-essay-btn" id="modelEssayCopy" title="复制范文"><i class="fas fa-copy"></i> 复制</button>
+                        </div>
+                    </div>
+                    <div class="model-essay-body" id="modelEssayBody">范文生成中…</div>
+                </div>
+
+                <!-- 识别结果工具栏 -->
+                <div class="recognition-toolbar" id="recognitionToolbar">
+                    <span class="recognition-toolbar-title">识别结果</span>
+                    <label class="select-all-recognition-label">
+                        <input type="checkbox" id="selectAllRecognition"> 全选
+                    </label>
+                    <button class="delete-recognition-btn" id="deleteRecognitionBtn" disabled><i class="fas fa-trash"></i> 删除选中</button>
+                </div>
+
+                <div class="submit-row">
+                    <button class="custom-btn" id="customBtn"><i class="fas fa-edit"></i> 自定义</button>
+                    <div class="recognition-bar" id="recognitionBar">
+                        <span class="placeholder">暂无识别结果</span>
+                    </div>
+                    <span class="recognition-mobile-info" id="recognitionMobileInfo"></span>
+                    <button class="submit-btn" id="submitEssayBtn"><i class="fas fa-paper-plane"></i> 提交批改</button>
+                </div>
+
+                <!-- 识别内容详情弹窗 -->
+                <div class="recognition-detail-popover" id="recognitionDetailPopover">
+                    <div class="popover-header">
+                        <div class="header-left">
+                            <span>识别内容详情</span>
+                            <button class="edit-btn" id="recognitionEditBtn" title="编辑内容"><i class="fas fa-pen"></i></button>
+                            <button class="zoom-btn" id="detailZoomBtn" title="放大/缩小"><i class="fas fa-expand"></i></button>
+                        </div>
+                        <button class="close-btn" id="recognitionDetailClose"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="popover-body" id="recognitionDetailBody"></div>
+                </div>
+
+                <!-- 识别内容编辑弹窗（居中，放大彻底占满） -->
+                <div class="recognition-edit-popover" id="recognitionEditPopover">
+                    <div class="popover-header">
+                        <span>编辑识别内容</span>
+                        <div class="header-right">
+                            <button class="zoom-btn" id="editZoomBtn" title="放大/缩小"><i class="fas fa-expand"></i></button>
+                            <button class="close-btn" id="recognitionEditClose"><i class="fas fa-times"></i></button>
+                        </div>
+                    </div>
+                    <div class="popover-body">
+                        <textarea id="recognitionEditTextarea" rows="6"></textarea>
+                    </div>
+                    <div class="popover-footer">
+                        <button class="cancel-btn" id="recognitionEditCancel">取消</button>
+                        <button class="save-btn" id="recognitionEditSave">保存</button>
+                    </div>
+                </div>
+
+                <div class="result-summary" id="resultSummary">
+                    <span class="placeholder">批改结果摘要将在此显示...</span>
+                </div>
+                <div class="loading" id="loadingIndicator">
+                    <div class="spinner"></div>
+                    <span id="loadingText">正在批改，请稍候...</span>
+                    <button class="btn btn-sm btn-tinted" id="batchPauseBtn" style="display:none; margin-left: 12px;"><i class="fas fa-pause"></i> <span id="batchPauseLabel">暂停</span></button>
+                    <div class="progress-bar batch-progress" id="batchProgress"><div class="bar determinate" id="batchProgressBar"></div></div>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<!-- 编辑成绩内联弹窗 -->
+<div class="score-edit-popover" id="scoreEditPopover">
+    <div class="popover-header"><i class="fas fa-pen"></i> 编辑成绩</div>
+    <div class="popover-body">
+        <input type="number" id="scoreEditInput" class="score-edit-input" min="0" step="0.5" placeholder="分数">
+        <span class="popover-max" id="scoreEditMax">/ 满分</span>
+    </div>
+    <div class="popover-footer">
+        <button class="popover-cancel" id="scoreEditCancel">取消</button>
+        <button class="popover-save" id="scoreEditSave">保存</button>
+    </div>
+</div>
+
+<!-- 详情弹窗 -->
+<div class="modal-overlay" id="detailModal">
+    <div class="modal-content essay-detail-modal">
+        <button class="close-btn" id="modalClose">&times;</button>
+        <div class="modal-title" id="modalTitle">批改详情</div>
+        <div class="modal-body essay-detail-grid" id="modalBody"></div>
+    </div>
+</div>
+
+<!-- 自定义弹窗 -->
+<div class="modal-overlay" id="customModal">
+    <div class="modal-content">
+        <button class="close-btn" id="customModalClose">&times;</button>
+        <div class="modal-title">自定义题目与作文</div>
+        <div class="modal-body">
+            <div class="custom-tabs">
+                <button class="active" data-tab="titleTab">📝 题目</button>
+                <button data-tab="essayTab">📄 作文</button>
+            </div>
+            <div class="custom-panel active" id="titleTab">
+                <div class="custom-section">
+                    <h4>当前题目</h4>
+                    <div id="customTitleContainer"><div class="empty-hint">暂无题目</div></div>
+                    <div class="custom-input-group">
+                        <textarea id="customTitleInput" placeholder="输入题目内容..." rows="2"></textarea>
+                        <button id="addTitleBtn">添加/更新</button>
+                    </div>
+                </div>
+            </div>
+            <div class="custom-panel" id="essayTab">
+                <div class="custom-section">
+                    <h4>作文列表</h4>
+                    <div id="customEssaysContainer"><div class="empty-hint">暂无作文</div></div>
+                    <div class="custom-input-group">
+                        <textarea id="customEssayInput" placeholder="输入作文内容..." rows="3"></textarea>
+                        <button id="addEssayBtn">添加</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="cancel-btn" id="customCancelBtn">取消</button>
+                <button class="done-btn" id="customDoneBtn">完成</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/static/vendor/xlsx/xlsx.full.min.js?v=202608324"></script>
+<script>
+    // ----- 磨砂玻璃弹窗工具 -----
+    function showGlassModal(title, message, buttons) {
+        return new Promise((resolve) => {
+            const overlay = document.getElementById('glassModal');
+            const icon = document.getElementById('modalIcon');
+            const titleEl = document.getElementById('modalTitle');
+            const msgEl = document.getElementById('modalMessage');
+            const actionsEl = document.getElementById('modalActions');
+
+            titleEl.textContent = title;
+            msgEl.textContent = message;
+            actionsEl.innerHTML = '';
+            buttons.forEach((btn) => {
+                const button = document.createElement('button');
+                button.textContent = btn.label;
+                button.className = btn.class || 'btn-primary';
+                button.addEventListener('click', () => {
+                    closeOverlay(overlay);
+                    resolve(btn.value);
+                });
+                actionsEl.appendChild(button);
+            });
+            icon.innerHTML = '<i class="fas fa-info-circle"></i>';
+            overlay.classList.add('active');
+        });
+    }
+
+    // ----- @通知样式的提示气泡，异步处理 -----
+    let essayToastTimer = null;
+    function showAlert(message) {
+        return new Promise((resolve) => {
+            const banner = document.getElementById('essayToastBanner');
+            const textEl = document.getElementById('essayToastText');
+            if (!banner || !textEl) { resolve('ok'); return; }
+            textEl.textContent = message;
+            banner.classList.add('show');
+            clearTimeout(essayToastTimer);
+            const finish = () => {
+                banner.classList.remove('show');
+                resolve('ok');
+            };
+            essayToastTimer = setTimeout(finish, 3200);
+            const closeBtn = document.getElementById('essayToastClose');
+            if (closeBtn) {
+                closeBtn.onclick = function(e) {
+                    e.stopPropagation();
+                    clearTimeout(essayToastTimer);
+                    finish();
+                };
+            }
+        });
+    }
+
+    // ----- 满分配置 -----
+    const TYPE_CONFIG = {
+        chinese: {
+            label: '语文作文',
+            maxScore: 60
+        },
+        english: {
+            label: '应用文',
+            maxScore: 15
+        },
+        continuation: {
+            label: '读后续写',
+            maxScore: 25
+        }
+    };
+    function getTypeConfig(type) {
+        return TYPE_CONFIG[type] || { label: type || '作文', maxScore: 100 };
+    }
+
+    const IS_TEACHER = {{if eq .Role "teacher"}}true{{else}}false{{end}};
+
+    // ----- 状态 -----
+    let currentType = 'chinese';
+    let recognizedTitle = '';
+    let essayQueue = [];
+    let essayNames = [];
+    let essayImages = [];
+    let essayDraftIds = [];
+    window.titleDraftId = null;  // 修正：移除 let 关键字
+    let results = [];
+    let isSubmitting = false;
+    let currentModalIndex = -1;
+    let modalUpdateTimer = null;
+    let editingTitle = false;
+    let editingEssayIndex = -1;
+    let selectedIndices = new Set();
+    let selectedRecognitionIndices = new Set();
+    let editingScoreIndex = -1;
+    let editingRecognitionIndex = -1;
+    let editingRecognitionIsTitle = false;
+    let detailExpanded = false;
+    let editExpanded = false;
+
+    // ----- 服务器同步（替代 localStorage） -----
+    function updateAndSave() {
+        updateRecognitionBar();
+        updateResultSummary();
+        updateTitlePreview();
+        updateEssayPreview();
+        updateRecognitionDeleteButton();
+    }
+
+    // ----- 从服务器拉取全量数据 -----
+    async function syncFromServer() {
+        try {
+            const [draftsRes, jobsRes] = await Promise.all([
+                fetch('/api/essay/drafts'),
+                fetch('/api/essay/jobs')
+            ]);
+            const drafts = await draftsRes.json();
+            const jobs = await jobsRes.json();
+
+            recognizedTitle = '';
+            essayQueue = [];
+            essayNames = [];
+            essayImages = [];
+            essayDraftIds = [];
+            let titleDraftId = null;
+            for (const d of drafts) {
+                if (d.kind === 'title') {
+                    recognizedTitle = d.content;
+                    titleDraftId = d.id;
+                } else {
+                    essayQueue.push(d.content);
+                    // 过滤旧数据的"无"占位（历史版本曾把"无"误存为姓名）
+                    const dn = (d.student_name || '').trim();
+                    essayNames.push(dn && dn !== '无' ? dn : null);
+                    essayImages.push(d.image_path || null);
+                    essayDraftIds.push(d.id);
+                }
+            }
+            window.titleDraftId = titleDraftId;
+
+            results = jobs.map(j => ({
+                id: j.id,
+                score: j.score_text || null,
+                fullText: j.feedback || '',
+                content: j.content || '',
+                imagePath: j.image_path || null,
+                status: j.is_streaming ? 'processing' : (j.status === 'error' ? 'done' : j.status),
+                studentName: j.student_name || null,
+                type: j.type,
+                typeLabel: getTypeConfig(j.type).label,
+                maxScore: j.max_score,
+                teacher_edited: j.teacher_edited || false,
+                teacherComment: j.teacher_comment || '',
+                shortComment: j.short_comment || '',
+                annotatedPath: j.annotated_path || null,
+                annotations: j.annotations || '',
+                excellent: j.excellent || false
+            }));
+
+            // 对仍在批改中的任务接上流
+            jobs.filter(j => j.is_streaming).forEach(j => attachEssayStream(j.id));
+
+            updateAndSave();
+        } catch (e) {
+            console.error('同步服务器数据失败:', e);
+            showAlert('同步数据失败，请刷新重试');
+        }
+    }
+
+    // ----- 流式订阅 -----
+    // 已挂流的任务集合：syncFromServer 定时轮询会对 is_streaming 的任务重复调用
+    // attachEssayStream，不去重会出现多个读取器并发累积、互相覆盖文本（页面卡顿且内容重复）
+    const activeEssayStreams = new Set();
+
+    // 全局合并绘制：多条流并发到达时，无论片段多密集，最多每 500ms 重绘一次页面
+    let resultsPaintTimer = null;
+    function scheduleResultsPaint() {
+        if (resultsPaintTimer) return;
+        resultsPaintTimer = setTimeout(() => {
+            resultsPaintTimer = null;
+            updateAndSave();
+        }, 500);
+    }
+
+    function attachEssayStream(jobID) {
+        if (activeEssayStreams.has(jobID)) return;
+        activeEssayStreams.add(jobID);
+        const idx = results.findIndex(r => r.id === jobID);
+        if (idx === -1) { activeEssayStreams.delete(jobID); return; }
+        fetch('/api/essay/stream/' + jobID).then(async response => {
+            if (!response.body) { activeEssayStreams.delete(jobID); return; }
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+            let fullText = results[idx] ? results[idx].fullText : '';
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                if (value) {
+                    fullText += decoder.decode(value, { stream: true });
+                    if (idx >= 0) {
+                        results[idx].fullText = fullText;
+                        scheduleResultsPaint();
+                    }
+                }
+            }
+            activeEssayStreams.delete(jobID);
+            // 结束后重新拉取最终状态（含分数；paused = 用户手动暂停）
+            const jobsRes = await fetch('/api/essay/jobs');
+            const jobs = await jobsRes.json();
+            const j = jobs.find(x => x.id === jobID);
+            if (j && idx >= 0) {
+                results[idx].fullText = j.feedback;
+                results[idx].score = j.score_text || '--';
+                results[idx].status = j.status === 'paused' ? 'paused' : 'done';
+                updateAndSave();
+            }
+        }).catch(err => {
+            activeEssayStreams.delete(jobID);
+            console.error('流式订阅失败:', err);
+        });
+    }
+
+    // ----- DOM 引用 -----
+    const titleUpload = document.getElementById('titleUpload');
+    const essayUpload = document.getElementById('essayUpload');
+    const titlePreview = document.getElementById('titlePreview');
+    const essayPreview = document.getElementById('essayPreview');
+    const titleProgress = document.getElementById('titleProgress');
+    const essayProgress = document.getElementById('essayProgress');
+    const recognitionBar = document.getElementById('recognitionBar');
+    const recognitionMobileInfo = document.getElementById('recognitionMobileInfo');
+    const submitBtn = document.getElementById('submitEssayBtn');
+    const resultSummary = document.getElementById('resultSummary');
+    const loading = document.getElementById('loadingIndicator');
+    const loadingText = document.getElementById('loadingText');
+    const modalOverlay = document.getElementById('detailModal');
+
+    // ----- AI 示范范文：题目识别后自动生成，可复制/重新生成 -----
+    let modelEssayLoading = false;
+    let modelEssayText = '';
+    const modelEssayBox = document.getElementById('modelEssayBox');
+    const modelEssayBody = document.getElementById('modelEssayBody');
+    // 范文折叠：状态记忆（默认折叠，生成完成后自动展开）
+    const ME_COLLAPSE_KEY = 'modelEssayCollapsed';
+    let meCollapsed = false;
+    try { meCollapsed = localStorage.getItem(ME_COLLAPSE_KEY) === '1'; } catch (e) {}
+    function applyMECollapse() {
+        if (!modelEssayBody) return;
+        modelEssayBody.style.display = meCollapsed ? 'none' : 'block';
+        const chevron = document.getElementById('modelEssayChevron');
+        if (chevron) chevron.className = meCollapsed ? 'fas fa-chevron-right' : 'fas fa-chevron-down';
+        const toggle = document.getElementById('modelEssayToggle');
+        if (toggle) toggle.setAttribute('aria-expanded', String(!meCollapsed));
+    }
+    function setMECollapsed(v) {
+        meCollapsed = v;
+        try { localStorage.setItem(ME_COLLAPSE_KEY, v ? '1' : '0'); } catch (e) {}
+        applyMECollapse();
+    }
+    const modelEssayCopy = document.getElementById('modelEssayCopy');
+    const modelEssayRegen = document.getElementById('modelEssayRegen');
+
+    async function generateModelEssay() {
+        const title = (recognizedTitle || '').trim();
+        if (!title || modelEssayLoading) return;
+        modelEssayLoading = true;
+        if (modelEssayBox) {
+            modelEssayBox.style.display = 'block';
+            modelEssayBody.textContent = '范文生成中…';
+            modelEssayBody.classList.add('loading');
+            if (modelEssayCopy) modelEssayCopy.disabled = true;
+            if (modelEssayRegen) modelEssayRegen.disabled = true;
+        }
+        try {
+            const resp = await fetch('/api/essay/model-essay', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: title, type: currentType })
+            });
+            const data = await resp.json();
+            if (!resp.ok || data.error) throw new Error(data.error || '范文生成失败');
+            modelEssayText = data.essay || '';
+            if (modelEssayBox) {
+                modelEssayText && setMECollapsed(false); // 生成完成自动展开
+                modelEssayBody.textContent = modelEssayText;
+                modelEssayBody.classList.remove('loading');
+                if (modelEssayCopy) modelEssayCopy.disabled = false;
+                if (modelEssayRegen) modelEssayRegen.disabled = false;
+            }
+        } catch (e) {
+            if (modelEssayBox) {
+                modelEssayBody.textContent = '范文生成失败：' + e.message;
+                modelEssayBody.classList.remove('loading');
+                if (modelEssayRegen) modelEssayRegen.disabled = false;
+            }
+        } finally {
+            modelEssayLoading = false;
+        }
+    }
+
+    if (modelEssayCopy) {
+        modelEssayCopy.addEventListener('click', async function() {
+            if (!modelEssayText) return;
+            try {
+                await navigator.clipboard.writeText(modelEssayText);
+                this.innerHTML = '<i class="fas fa-check"></i> 已复制';
+                setTimeout(() => { this.innerHTML = '<i class="fas fa-copy"></i> 复制'; }, 1600);
+            } catch (e) {
+                showAlert('复制失败，请手动选择文本复制');
+            }
+        });
+    }
+    if (modelEssayRegen) {
+        modelEssayRegen.addEventListener('click', generateModelEssay);
+    }
+    const modelEssayToggle = document.getElementById('modelEssayToggle');
+    if (modelEssayToggle) {
+        modelEssayToggle.addEventListener('click', () => setMECollapsed(!meCollapsed));
+        applyMECollapse();
+    }
+    const modalTitle = document.getElementById('modalTitle');
+    const modalBody = document.getElementById('modalBody');
+    const modalClose = document.getElementById('modalClose');
+    const customModal = document.getElementById('customModal');
+    const customModalClose = document.getElementById('customModalClose');
+    const customCancelBtn = document.getElementById('customCancelBtn');
+    const customDoneBtn = document.getElementById('customDoneBtn');
+    const customTitleContainer = document.getElementById('customTitleContainer');
+    const customEssaysContainer = document.getElementById('customEssaysContainer');
+    const customTitleInput = document.getElementById('customTitleInput');
+    const customEssayInput = document.getElementById('customEssayInput');
+    const addTitleBtn = document.getElementById('addTitleBtn');
+    const addEssayBtn = document.getElementById('addEssayBtn');
+    const tabButtons = document.querySelectorAll('.custom-tabs button');
+    const scoreEditPopover = document.getElementById('scoreEditPopover');
+    const scoreEditInput = document.getElementById('scoreEditInput');
+    const scoreEditMax = document.getElementById('scoreEditMax');
+    const scoreEditSave = document.getElementById('scoreEditSave');
+    const scoreEditCancel = document.getElementById('scoreEditCancel');
+    const selectAllRecognition = document.getElementById('selectAllRecognition');
+    const deleteRecognitionBtn = document.getElementById('deleteRecognitionBtn');
+    const recognitionDetailPopover = document.getElementById('recognitionDetailPopover');
+    const recognitionDetailBody = document.getElementById('recognitionDetailBody');
+    const recognitionDetailClose = document.getElementById('recognitionDetailClose');
+    const recognitionEditBtn = document.getElementById('recognitionEditBtn');
+    const detailZoomBtn = document.getElementById('detailZoomBtn');
+    const recognitionEditPopover = document.getElementById('recognitionEditPopover');
+    const recognitionEditTextarea = document.getElementById('recognitionEditTextarea');
+    const recognitionEditClose = document.getElementById('recognitionEditClose');
+    const recognitionEditCancel = document.getElementById('recognitionEditCancel');
+    const recognitionEditSave = document.getElementById('recognitionEditSave');
+    const editZoomBtn = document.getElementById('editZoomBtn');
+
+    const btnChinese = document.getElementById('btnChinese');
+    const btnEnglish = document.getElementById('btnEnglish');
+    const btnContinuation = document.getElementById('btnContinuation');
+
+    function setActiveType(type, btn) {
+        document.querySelectorAll('.essay-actions button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentType = type;
+        // 联动：满分输入框显示当前类型的自定义满分，温度滑块恢复该类型的记忆值
+        const scoreInput = document.getElementById('maxScoreInput');
+        if (scoreInput) scoreInput.value = loadMaxScore(type);
+        refreshTempUI();
+    }
+
+    // ----- 批改设置：批改温度 + 自定义满分（按类型持久化） -----
+    // 温度 0~1：越低越严格（从严扣分），越高越自由（鼓励为主）。
+    const TEMP_KEY = 'essay_temp_';
+    function loadTemp(type) {
+        const v = parseFloat(localStorage.getItem(TEMP_KEY + type));
+        return isNaN(v) ? 0.5 : Math.min(1, Math.max(0, v));
+    }
+    function saveTemp(type, v) {
+        try { localStorage.setItem(TEMP_KEY + type, String(v)); } catch (e) {}
+    }
+    function tempHintText(t) {
+        if (t <= 0.2) return '非常严格：所有问题如实扣分，高分难得';
+        if (t <= 0.4) return '偏严格：从严扣分，避免虚高';
+        if (t <= 0.6) return '标准：客观反映实际水平';
+        if (t <= 0.8) return '偏自由：鼓励为主，给表达留空间';
+        return '非常自由：以鼓励为主，善意理解学生表达';
+    }
+    const SCORE_KEY = 'essay_maxscore_';
+    function loadMaxScore(type) {
+        const saved = parseInt(localStorage.getItem(SCORE_KEY + type) || '', 10);
+        return saved > 0 ? saved : TYPE_CONFIG[type].maxScore;
+    }
+    function saveMaxScore(type, v) {
+        TYPE_CONFIG[type].maxScore = v;
+        try { localStorage.setItem(SCORE_KEY + type, String(v)); } catch (e) {}
+    }
+    const tempSlider = document.getElementById('tempSlider');
+    const tempValue = document.getElementById('tempValue');
+    const tempHint = document.getElementById('tempHint');
+    function refreshTempUI() {
+        const t = loadTemp(currentType);
+        if (tempSlider) tempSlider.value = t;
+        if (tempValue) tempValue.textContent = t.toFixed(1);
+        if (tempHint) tempHint.textContent = tempHintText(t);
+    }
+    if (tempSlider) {
+        tempSlider.addEventListener('input', function() {
+            const v = Math.round(parseFloat(this.value) * 10) / 10;
+            if (tempValue) tempValue.textContent = v.toFixed(1);
+            if (tempHint) tempHint.textContent = tempHintText(v);
+        });
+        tempSlider.addEventListener('change', function() {
+            saveTemp(currentType, parseFloat(this.value));
+        });
+    }
+    const maxScoreInput = document.getElementById('maxScoreInput');
+    if (maxScoreInput) {
+        maxScoreInput.value = loadMaxScore(currentType);
+        maxScoreInput.addEventListener('change', function() {
+            const v = parseInt(this.value, 10);
+            if (!v || v < 1) { this.value = loadMaxScore(currentType); return; }
+            if (v > 200) { this.value = 200; }
+            saveMaxScore(currentType, parseInt(this.value, 10));
+        });
+    }
+
+    btnChinese.addEventListener('click', function() { setActiveType('chinese', this); });
+    btnEnglish.addEventListener('click', function() { setActiveType('english', this); });
+    btnContinuation.addEventListener('click', function() { setActiveType('continuation', this); });
+
+    // ----- 工具函数 -----
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // ----- 批改详情：原图 / 批注图 / 识别结果 / 批改结果 / 名师点评 -----
+    function renderEssayDetail(r) {
+        const imageHtml = r.imagePath
+            ? `<img src="/api/essay/jobs/${r.id}/image" alt="学生作文原图" loading="lazy">`
+            : `<div class="pane-empty">无原图（手动录入或旧记录）</div>`;
+        const annotatedHtml = r.annotatedPath
+            ? `<div class="essay-detail-pane annotated-pane">
+                    <div class="pane-title"><i class="fas fa-highlighter"></i> AI 批注图（红=错误 绿=好句 橙=可提升）</div>
+                    <div class="pane-body"><img src="/api/essay/jobs/${r.id}/annotated" alt="AI 批注图" loading="lazy"><div class="annotation-notes" id="annotationNotes"></div></div>
+                </div>`
+            : '';
+        const contentHtml = r.content
+            ? escapeHtml(r.content)
+            : `<span class="pane-empty">暂无识别内容</span>`;
+        const commentHtml = (r.teacherComment || r.shortComment)
+            ? `<div class="essay-detail-pane comment-pane">
+                    ${r.teacherComment ? `<div class="pane-title"><i class="fas fa-award"></i> 名师点评</div>
+                    <div class="pane-body comment-text">${escapeHtml(r.teacherComment)}</div>` : ''}
+                    ${r.shortComment ? `<div class="pane-title" style="margin-top:8px;"><i class="fas fa-comment-dots"></i> 教师短评</div>
+                    <div class="pane-body comment-text">${escapeHtml(r.shortComment)}</div>` : ''}
+                </div>`
+            : '';
+        const feedbackHtml = r.fullText
+            ? escapeHtml(r.fullText)
+            : (r.status === 'processing'
+                ? '<span class="pane-empty">正在批改，内容实时更新...</span>'
+                : '<span class="pane-empty">暂无批改结果</span>');
+
+        modalBody.innerHTML = `
+            <div class="essay-detail-pane image-pane">
+                <div class="pane-title"><i class="fas fa-image"></i> 学生作文原图</div>
+                <div class="pane-body">${imageHtml}</div>
+            </div>
+            ${annotatedHtml}
+            <div class="essay-detail-pane">
+                <div class="pane-title"><i class="fas fa-font"></i> 识别结果（OCR）</div>
+                <div class="pane-body">${contentHtml}</div>
+            </div>
+            <div class="essay-detail-pane">
+                <div class="pane-title"><i class="fas fa-check-circle"></i> 批改结果</div>
+                <div class="pane-body" id="modalFeedbackBody">${feedbackHtml}</div>
+            </div>
+            ${commentHtml}
+        `;
+        const feedbackBody = document.getElementById('modalFeedbackBody');
+        if (feedbackBody) feedbackBody.scrollTop = feedbackBody.scrollHeight;
+
+        // 批注编号 → 批注文字列表
+        const notesEl = document.getElementById('annotationNotes');
+        if (notesEl && r.annotations) {
+            try {
+                const anns = JSON.parse(r.annotations);
+                if (Array.isArray(anns) && anns.length) {
+                    const kindName = { error: '错误', good: '好句', improve: '可提升' };
+                    notesEl.innerHTML = anns.map((a, i) =>
+                        `<div class="annotation-note ann-${escapeHtml(a.kind)}">${i + 1}. 【${kindName[a.kind] || a.kind}】${escapeHtml(a.note)}</div>`
+                    ).join('');
+                }
+            } catch (e) { /* 批注 JSON 解析失败则不显示列表 */ }
+        }
+    }
+
+    function extractScore(text, maxScore) {
+        if (!text) return null;
+        const max = (typeof maxScore === 'number' && maxScore > 0) ? maxScore : 100;
+        const strictRegex = /总分\s*[：:]\s*(\d{1,3}(?:\.\d+)?)\s*分?/g;
+        let m, lastStrict = null;
+        while ((m = strictRegex.exec(text)) !== null) {
+            const val = parseFloat(m[1]);
+            if (!isNaN(val) && val >= 0 && val <= max) lastStrict = m[1];
+        }
+        if (lastStrict !== null) return lastStrict;
+        const fallbackRegex = /(?:得分|评分|总分)[：:]\s*(\d+(?:\.\d+)?)/g;
+        let f, lastFallback = null;
+        while ((f = fallbackRegex.exec(text)) !== null) {
+            const val = parseFloat(f[1]);
+            if (!isNaN(val) && val >= 0 && val <= max) lastFallback = f[1];
+        }
+        return lastFallback;
+    }
+
+    // ----- 更新识别栏 -----
+    function updateRecognitionBar() {
+        const total = essayQueue.length + (recognizedTitle ? 1 : 0);
+        recognitionMobileInfo.textContent = total > 0 ? `已识别 ${total} 项` : '';
+
+        if (total === 0) {
+            recognitionBar.innerHTML = '<span class="placeholder">暂无识别结果</span>';
+            selectedRecognitionIndices.clear();
+            updateRecognitionDeleteButton();
+            return;
+        }
+
+        let items = [];
+        if (recognizedTitle) {
+            items.push({ type: '题目', content: recognizedTitle, index: -1 });
+        }
+        essayQueue.forEach((text, idx) => {
+            items.push({ type: `作文${idx+1}`, content: text, index: idx });
+        });
+
+        let html = '';
+        items.forEach((item, idx) => {
+            const checked = selectedRecognitionIndices.has(idx) ? 'checked' : '';
+            const contentAttr = escapeHtml(item.content);
+            let nameHtml = '';
+            if (item.type !== '题目') {
+                const qIdx = item.index;
+                const nm = essayNames[qIdx];
+                const validName = nm && nm !== '无' ? nm : null;
+                nameHtml = validName
+                    ? `<button type="button" class="recognition-name" data-name-index="${qIdx}" title="点击修改学生姓名">姓名：${escapeHtml(validName)}</button>`
+                    : `<button type="button" class="recognition-name empty" data-name-index="${qIdx}" title="点击设置学生姓名">设姓名</button>`;
+            }
+            html += `
+                <span class="recognition-item" data-item-index="${idx}" data-content="${contentAttr}">
+                    <input type="checkbox" class="recognition-checkbox" data-item-index="${idx}" ${checked}>
+                    <span class="badge">${item.type === '题目' ? 'T' : 'E'}</span>
+                    <span class="content">${escapeHtml(item.content.substring(0, 30))}${item.content.length > 30 ? '...' : ''}</span>
+                    ${nameHtml}
+                </span>
+            `;
+        });
+        recognitionBar.innerHTML = html;
+
+        document.querySelectorAll('.recognition-checkbox').forEach(cb => {
+            cb.addEventListener('change', function(e) {
+                e.stopPropagation();
+                const idx = parseInt(this.dataset.itemIndex);
+                if (this.checked) selectedRecognitionIndices.add(idx);
+                else selectedRecognitionIndices.delete(idx);
+                updateRecognitionDeleteButton();
+            });
+        });
+
+        document.querySelectorAll('.recognition-item').forEach(item => {
+            item.addEventListener('click', function(e) {
+                if (e.target.closest('.recognition-checkbox')) return;
+                if (e.target.closest('.recognition-name')) return; // 姓名按钮单独处理
+                const content = this.dataset.content || '';
+                const idx = parseInt(this.dataset.itemIndex);
+                showRecognitionDetail(content, this, idx);
+            });
+        });
+
+        // 学生姓名：点击设置/修改（OCR 未识别出姓名时手动补）
+        document.querySelectorAll('.recognition-name').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const qIdx = parseInt(this.dataset.nameIndex);
+                if (qIdx < 0 || qIdx >= essayNames.length) return;
+                const current = essayNames[qIdx] || '';
+                const name = window.prompt('学生姓名（显示在批改列表与导出报告中）：', current);
+                if (name !== null) {
+                    essayNames[qIdx] = name.trim();
+                    updateAndSave();
+                }
+            });
+        });
+
+        selectAllRecognition.addEventListener('change', function() {
+            const checked = this.checked;
+            document.querySelectorAll('.recognition-checkbox').forEach(cb => {
+                cb.checked = checked;
+                const idx = parseInt(cb.dataset.itemIndex);
+                if (checked) selectedRecognitionIndices.add(idx);
+                else selectedRecognitionIndices.delete(idx);
+            });
+            updateRecognitionDeleteButton();
+        });
+
+        updateRecognitionDeleteButton();
+    }
+
+    // ----- 显示识别详情 -----
+    function showRecognitionDetail(content, targetElement, itemIndex) {
+        recognitionDetailBody.textContent = content || '（无内容）';
+        if (detailExpanded) {
+            detailExpanded = false;
+            recognitionDetailPopover.classList.remove('expanded');
+            detailZoomBtn.innerHTML = '<i class="fas fa-expand"></i>';
+        }
+        recognitionDetailPopover.classList.add('show');
+        editingRecognitionIndex = itemIndex;
+        editingRecognitionIsTitle = (recognizedTitle && itemIndex === 0);
+
+        const rect = targetElement.getBoundingClientRect();
+        const popover = recognitionDetailPopover;
+        const popoverWidth = Math.min(popover.offsetWidth || 500, 500);
+        const popoverHeight = popover.offsetHeight || 400;
+        let left = rect.left + window.scrollX + rect.width / 2 - popoverWidth / 2;
+        let top = rect.bottom + window.scrollY + 6;
+
+        if (left + popoverWidth > window.innerWidth - 10) {
+            left = window.innerWidth - popoverWidth - 10;
+        }
+        if (left < 10) left = 10;
+        if (top + popoverHeight > window.innerHeight + window.scrollY - 20) {
+            top = rect.top + window.scrollY - popoverHeight - 6;
+        }
+        if (top < 10) top = 10;
+
+        popover.style.left = left + 'px';
+        popover.style.top = top + 'px';
+        popover.style.transform = 'none';
+        window._detailTargetElement = targetElement;
+    }
+
+    // ----- 隐藏识别详情 -----
+    function hideRecognitionDetail() {
+        recognitionDetailPopover.classList.remove('show');
+        if (recognitionEditPopover.classList.contains('show')) {
+            hideRecognitionEdit();
+        }
+        if (detailExpanded) {
+            detailExpanded = false;
+            recognitionDetailPopover.classList.remove('expanded');
+            detailZoomBtn.innerHTML = '<i class="fas fa-expand"></i>';
+        }
+    }
+
+    // ----- 显示识别编辑（居中，放大彻底占满） -----
+    function showRecognitionEdit() {
+        let currentContent = '';
+        if (editingRecognitionIsTitle) {
+            currentContent = recognizedTitle || '';
+        } else {
+            const essayIndex = editingRecognitionIndex - (recognizedTitle ? 1 : 0);
+            if (essayIndex >= 0 && essayIndex < essayQueue.length) {
+                currentContent = essayQueue[essayIndex] || '';
+            } else {
+                showAlert('无法找到要编辑的作文');
+                return;
+            }
+        }
+        recognitionEditTextarea.value = currentContent;
+        // 强制居中并重置尺寸
+        recognitionEditPopover.style.left = '50%';
+        recognitionEditPopover.style.top = '50%';
+        recognitionEditPopover.style.transform = 'translate(-50%, -50%)';
+        recognitionEditPopover.classList.add('show');
+        recognitionEditTextarea.focus();
+        if (editExpanded) {
+            recognitionEditPopover.classList.add('expanded');
+        }
+    }
+
+    // ----- 隐藏识别编辑 -----
+    function hideRecognitionEdit() {
+        recognitionEditPopover.classList.remove('show');
+        if (editExpanded) {
+            editExpanded = false;
+            recognitionEditPopover.classList.remove('expanded');
+            editZoomBtn.innerHTML = '<i class="fas fa-expand"></i>';
+        }
+    }
+
+    // ----- 保存识别编辑（并关闭所有弹窗） -----
+    function saveRecognitionEdit() {
+        const newContent = recognitionEditTextarea.value.trim();
+        if (newContent === '') {
+            showAlert('内容不能为空');
+            return;
+        }
+        if (editingRecognitionIsTitle) {
+            recognizedTitle = newContent;
+        } else {
+            const essayIndex = editingRecognitionIndex - (recognizedTitle ? 1 : 0);
+            if (essayIndex >= 0 && essayIndex < essayQueue.length) {
+                essayQueue[essayIndex] = newContent;
+            } else {
+                showAlert('无法找到要编辑的作文');
+                return;
+            }
+        }
+        updateAndSave();
+        // 关闭所有弹窗
+        if (recognitionDetailPopover.classList.contains('show')) {
+            hideRecognitionDetail(); // 内部会递归关闭编辑窗
+        } else {
+            hideRecognitionEdit();
+        }
+        // 重置缩放状态
+        detailExpanded = false;
+        editExpanded = false;
+        detailZoomBtn.innerHTML = '<i class="fas fa-expand"></i>';
+        editZoomBtn.innerHTML = '<i class="fas fa-expand"></i>';
+        showAlert('内容已更新');
+    }
+
+    // ----- 缩放功能（编辑窗放大彻底占满） -----
+    function toggleDetailZoom() {
+        if (!recognitionDetailPopover.classList.contains('show')) return;
+        detailExpanded = !detailExpanded;
+        recognitionDetailPopover.classList.toggle('expanded', detailExpanded);
+        detailZoomBtn.innerHTML = detailExpanded ? '<i class="fas fa-compress"></i>' : '<i class="fas fa-expand"></i>';
+        if (detailExpanded) {
+            recognitionDetailPopover.style.left = '50%';
+            recognitionDetailPopover.style.top = '50%';
+            recognitionDetailPopover.style.transform = 'translate(-50%, -50%)';
+        } else {
+            if (window._detailTargetElement) {
+                const content = recognitionDetailBody.textContent;
+                const idx = editingRecognitionIndex;
+                recognitionDetailPopover.classList.remove('expanded');
+                const target = window._detailTargetElement;
+                const rect = target.getBoundingClientRect();
+                const popover = recognitionDetailPopover;
+                const popoverWidth = Math.min(popover.offsetWidth || 500, 500);
+                const popoverHeight = popover.offsetHeight || 400;
+                let left = rect.left + window.scrollX + rect.width / 2 - popoverWidth / 2;
+                let top = rect.bottom + window.scrollY + 6;
+                if (left + popoverWidth > window.innerWidth - 10) {
+                    left = window.innerWidth - popoverWidth - 10;
+                }
+                if (left < 10) left = 10;
+                if (top + popoverHeight > window.innerHeight + window.scrollY - 20) {
+                    top = rect.top + window.scrollY - popoverHeight - 6;
+                }
+                if (top < 10) top = 10;
+                popover.style.left = left + 'px';
+                popover.style.top = top + 'px';
+                popover.style.transform = 'none';
+                recognitionDetailPopover.classList.add('show');
+            }
+        }
+    }
+
+    function toggleEditZoom() {
+        if (!recognitionEditPopover.classList.contains('show')) return;
+        editExpanded = !editExpanded;
+        recognitionEditPopover.classList.toggle('expanded', editExpanded);
+        editZoomBtn.innerHTML = editExpanded ? '<i class="fas fa-compress"></i>' : '<i class="fas fa-expand"></i>';
+        // 始终居中
+        recognitionEditPopover.style.left = '50%';
+        recognitionEditPopover.style.top = '50%';
+        recognitionEditPopover.style.transform = 'translate(-50%, -50%)';
+    }
+
+    // ----- 事件绑定 -----
+    recognitionEditBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (editingRecognitionIndex === -1) {
+            showAlert('请先点击一个识别项');
+            return;
+        }
+        showRecognitionEdit();
+    });
+
+    detailZoomBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        toggleDetailZoom();
+    });
+    editZoomBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        toggleEditZoom();
+    });
+
+    recognitionEditClose.addEventListener('click', hideRecognitionEdit);
+    recognitionEditCancel.addEventListener('click', hideRecognitionEdit);
+    recognitionEditSave.addEventListener('click', saveRecognitionEdit);
+
+    recognitionDetailClose.addEventListener('click', function() {
+        hideRecognitionDetail();
+    });
+
+    // 点击外部关闭详情
+    document.addEventListener('click', function(e) {
+        if (recognitionDetailPopover.classList.contains('show')) {
+            const isClickInside = recognitionDetailPopover.contains(e.target) ||
+                e.target.closest('.recognition-item') ||
+                e.target.closest('#recognitionEditPopover') ||
+                e.target.closest('.edit-btn') ||
+                e.target.closest('.zoom-btn');
+            if (!isClickInside) {
+                hideRecognitionDetail();
+            }
+        }
+        if (recognitionEditPopover.classList.contains('show')) {
+            if (!recognitionEditPopover.contains(e.target) && !e.target.closest('.edit-btn') && !e.target.closest('.zoom-btn')) {
+                hideRecognitionEdit();
+            }
+        }
+    });
+
+    // ----- 删除识别项 -----
+    function updateRecognitionDeleteButton() {
+        deleteRecognitionBtn.disabled = selectedRecognitionIndices.size === 0;
+    }
+
+    async function deleteSelectedRecognition() {
+        const selected = Array.from(selectedRecognitionIndices);
+        if (selected.length === 0) {
+            await showAlert('请至少选中一项。');
+            return;
+        }
+        const confirmed = await new Promise(resolve => {
+            showGlassModal('确认删除', `确定要删除选中的 ${selected.length} 项识别内容吗？`, [
+                { label: '取消', value: false, class: 'btn-secondary' },
+                { label: '删除', value: true, class: 'btn-danger' }
+            ]).then(resolve);
+        });
+        if (!confirmed) return;
+
+        let newTitle = recognizedTitle;
+        let newQueue = [];
+        let newNames = [];
+        let newImages = [];
+
+        if (recognizedTitle) {
+            if (!selected.includes(0)) {
+                newTitle = recognizedTitle;
+            } else {
+                newTitle = '';
+            }
+        }
+        essayQueue.forEach((text, i) => {
+            const itemIdx = i + (recognizedTitle ? 1 : 0);
+            if (!selected.includes(itemIdx)) {
+                newQueue.push(text);
+                newNames.push(essayNames[i] || null);
+                newImages.push(essayImages[i] || null);
+            }
+        });
+
+        recognizedTitle = newTitle;
+        essayQueue = newQueue;
+        essayNames = newNames;
+        essayImages = newImages;
+
+        selectedRecognitionIndices.clear();
+        updateAndSave();
+        await showAlert(`已成功删除 ${selected.length} 项。`);
+    }
+
+    deleteRecognitionBtn.addEventListener('click', deleteSelectedRecognition);
+
+    // ----- 结果摘要 -----
+    function updateResultSummary() {
+        if (results.length === 0) {
+            resultSummary.innerHTML = '<span class="placeholder">批改结果摘要将在此显示...</span>';
+            return;
+        }
+
+        let html = `
+            <div class="result-toolbar">
+                <div class="result-toolbar-left">
+                    <span class="result-toolbar-title">批改结果（共 ${results.length} 篇）</span>
+                    <label class="select-all-label">
+                        <input type="checkbox" id="selectAllCheckbox" ${selectedIndices.size === results.length ? 'checked' : ''}>
+                        全选
+                    </label>
+                </div>
+                <div class="result-toolbar-right">
+                    <button class="export-excel-btn" id="exportExcelBtn"><i class="fas fa-file-excel"></i> 导出Excel</button>
+                    <button class="export-word-batch-btn" id="exportWordBatchBtn"><i class="fas fa-file-word"></i> 导出docx（选中）</button>
+                    <button class="export-pdf-batch-btn" id="exportPdfBatchBtn"><i class="fas fa-file-pdf"></i> 导出PDF（选中）</button>
+                    <button class="delete-selected-btn" id="deleteSelectedBtn" ${selectedIndices.size === 0 ? 'disabled' : ''}><i class="fas fa-trash"></i> 删除选中</button>
+                </div>
+            </div>
+        `;
+
+        results.forEach((r, idx) => {
+            let scoreDisplay = '';
+            let detailBtnClass = 'detail-btn';
+            let scoreClass = '';
+            let editDisabled = true;
+            let wordDisabled = true;
+            if (r.status === 'pending') {
+                scoreDisplay = '等待批改';
+                scoreClass = 'pending';
+                detailBtnClass += ' hidden';
+                editDisabled = true;
+                wordDisabled = true;
+            } else if (r.status === 'processing') {
+                scoreDisplay = '批改中...';
+                scoreClass = 'processing';
+                detailBtnClass += '';
+                editDisabled = true;
+                wordDisabled = true;
+            } else if (r.status === 'paused') {
+                scoreDisplay = '已暂停';
+                scoreClass = 'pending';
+                detailBtnClass += '';
+                editDisabled = true;
+                wordDisabled = true;
+            } else if (r.status === 'done') {
+                const isEdited = r.teacher_edited || false;
+                scoreDisplay = (r.score && r.score !== '--' && r.score !== '错误')
+                    ? `${r.score} / ${r.maxScore}`
+                    : (r.score || '--');
+                scoreClass = 'done' + (isEdited ? ' edited' : '');
+                detailBtnClass += '';
+                editDisabled = false;
+                wordDisabled = false;
+            }
+            const nameLabel = (r.excellent ? `<i class="fas fa-star excellent-star-inline" title="优秀作文"></i> ` : '') + (r.studentName ? escapeHtml(r.studentName) : `作文${idx+1}`);
+            const checked = selectedIndices.has(idx) ? 'checked' : '';
+            const editBtnHtml = IS_TEACHER ? `<button class="edit-score-btn" data-index="${idx}" ${editDisabled ? 'disabled' : ''}><i class="fas fa-pen"></i> 编辑成绩</button>` : '';
+            const pauseBtnHtml = (r.status === 'processing')
+                ? `<button class="pause-job-btn" data-index="${idx}" title="暂停该任务"><i class="fas fa-pause"></i> 暂停</button>`
+                : '';
+            html += `
+                <div class="result-item" data-index="${idx}">
+                    <input type="checkbox" class="result-select-checkbox" data-index="${idx}" ${checked} ${r.status !== 'done' ? 'disabled' : ''}>
+                    <span class="result-info">${nameLabel}：得分 <span class="score ${scoreClass}">${escapeHtml(scoreDisplay)}</span></span>
+                    <div class="result-actions">
+                        ${editBtnHtml}
+                        ${pauseBtnHtml}
+                        <button class="word-export-btn" data-index="${idx}" ${wordDisabled ? 'disabled' : ''}><i class="fas fa-file-word"></i> docx</button>
+                        <button class="pdf-export-btn" data-index="${idx}" ${wordDisabled ? 'disabled' : ''}><i class="fas fa-file-pdf"></i> PDF</button>
+                        <button class="detail-btn" data-index="${idx}" ${r.status === 'pending' ? 'disabled' : ''}>查看详情</button>
+                    </div>
+                    ${r.status === 'processing' ? '<div class="job-progress" title="AI 批改进行中"><div class="job-progress-bar"></div></div>' : ''}
+                </div>
+            `;
+        });
+        resultSummary.innerHTML = html;
+
+        const selectAllCb = document.getElementById('selectAllCheckbox');
+        if (selectAllCb) {
+            selectAllCb.addEventListener('change', function() {
+                const checked = this.checked;
+                document.querySelectorAll('.result-select-checkbox:not(:disabled)').forEach(cb => {
+                    cb.checked = checked;
+                    const idx = parseInt(cb.dataset.index);
+                    if (checked) selectedIndices.add(idx);
+                    else selectedIndices.delete(idx);
+                });
+                updateResultDeleteButton();
+            });
+        }
+
+        document.querySelectorAll('.result-select-checkbox').forEach(cb => {
+            cb.addEventListener('change', function() {
+                const idx = parseInt(this.dataset.index);
+                if (this.checked) selectedIndices.add(idx);
+                else selectedIndices.delete(idx);
+                const allCb = document.getElementById('selectAllCheckbox');
+                if (allCb) {
+                    const total = document.querySelectorAll('.result-select-checkbox:not(:disabled)').length;
+                    const checked = document.querySelectorAll('.result-select-checkbox:not(:disabled):checked').length;
+                    allCb.checked = (checked === total);
+                }
+                updateResultDeleteButton();
+            });
+        });
+
+        document.querySelectorAll('.detail-btn:not(.hidden)').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const idx = parseInt(this.dataset.index);
+                currentModalIndex = idx;
+                const r = results[idx];
+                if (!r) return;
+                const titleLabel = r.studentName ? escapeHtml(r.studentName) : `作文${idx+1}`;
+                modalTitle.textContent = `${titleLabel} 批改详情`;
+                renderEssayDetail(r);
+                modalOverlay.classList.add('active');
+
+                if (modalUpdateTimer) clearInterval(modalUpdateTimer);
+                if (r.status === 'processing') {
+                    // 详情弹窗三个面板都是长文本，重绘代价高：1s 一次足够
+                    modalUpdateTimer = setInterval(() => {
+                        const r2 = results[idx];
+                        if (r2 && modalOverlay.classList.contains('active') && currentModalIndex === idx) {
+                            renderEssayDetail(r2);
+                            if (r2.status === 'done') {
+                                clearInterval(modalUpdateTimer);
+                                modalUpdateTimer = null;
+                            }
+                        }
+                    }, 1000);
+                } else {
+                    if (modalUpdateTimer) { clearInterval(modalUpdateTimer); modalUpdateTimer = null; }
+                }
+            });
+        });
+
+        document.querySelectorAll('.pause-job-btn').forEach(btn => {
+            btn.addEventListener('click', async function(e) {
+                e.stopPropagation();
+                const idx = parseInt(this.dataset.index);
+                const r = results[idx];
+                if (!r || !r.id) return;
+                this.disabled = true;
+                try {
+                    const resp = await fetch(`/api/essay/jobs/${r.id}/pause`, { method: 'POST' });
+                    const data = await resp.json();
+                    if (!resp.ok || !data.ok) throw new Error(data.error || '暂停失败');
+                    r.status = 'paused';
+                    updateAndSave();
+                } catch (err) {
+                    showAlert(`暂停失败: ${err.message}`);
+                }
+            });
+        });
+
+        document.querySelectorAll('.edit-score-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const idx = parseInt(this.dataset.index);
+                if (editingScoreIndex === idx) {
+                    closeScoreEdit();
+                    return;
+                }
+                editingScoreIndex = idx;
+                const r = results[idx];
+                if (!r || r.status !== 'done') return;
+                const maxScore = r.maxScore || getTypeConfig(r.type).maxScore;
+                scoreEditMax.textContent = `/ ${maxScore}`;
+                scoreEditInput.value = r.score || '';
+                scoreEditInput.max = maxScore;
+                scoreEditInput.step = 0.5;
+                scoreEditPopover.classList.add('show');
+                setTimeout(() => scoreEditInput.focus(), 50);
+            });
+        });
+
+        document.querySelectorAll('.word-export-btn, .pdf-export-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const idx = parseInt(this.dataset.index);
+                exportReports([idx], this.classList.contains('pdf-export-btn') ? 'pdf' : 'docx');
+            });
+        });
+
+        const batchWordBtn = document.getElementById('exportWordBatchBtn');
+        if (batchWordBtn) {
+            batchWordBtn.addEventListener('click', () => exportReportsSelected('docx'));
+        }
+        const batchPdfBtn = document.getElementById('exportPdfBatchBtn');
+        if (batchPdfBtn) {
+            batchPdfBtn.addEventListener('click', () => exportReportsSelected('pdf'));
+        }
+
+        const exportExcelBtn = document.getElementById('exportExcelBtn');
+        if (exportExcelBtn) {
+            exportExcelBtn.addEventListener('click', exportResultsToExcel);
+        }
+
+        const deleteBtn = document.getElementById('deleteSelectedBtn');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', deleteSelectedResults);
+        }
+        updateResultDeleteButton();
+    }
+
+    function updateResultDeleteButton() {
+        const deleteBtn = document.getElementById('deleteSelectedBtn');
+        if (deleteBtn) {
+            deleteBtn.disabled = selectedIndices.size === 0;
+        }
+    }
+
+    // ----- 编辑成绩弹层 -----
+    function closeScoreEdit() {
+        scoreEditPopover.classList.remove('show');
+        editingScoreIndex = -1;
+    }
+
+    async function saveScoreEdit(idx, newScore) {
+        const r = results[idx];
+        if (!r) return;
+        r.score = newScore;
+        r.teacher_edited = true;
+        updateAndSave();
+        closeScoreEdit();
+        await showAlert('成绩已更新（仅前端演示，刷新页面将恢复）');
+    }
+
+    scoreEditSave.addEventListener('click', function() {
+        const idx = editingScoreIndex;
+        if (idx === -1) return;
+        const val = scoreEditInput.value.trim();
+        if (val === '') {
+            showAlert('请输入分数');
+            return;
+        }
+        const num = parseFloat(val);
+        if (isNaN(num) || num < 0) {
+            showAlert('请输入有效的正数');
+            return;
+        }
+        const maxScore = results[idx]?.maxScore || 100;
+        if (num > maxScore) {
+            showAlert(`分数不能超过满分 ${maxScore}`);
+            return;
+        }
+        saveScoreEdit(idx, num);
+    });
+
+    scoreEditCancel.addEventListener('click', closeScoreEdit);
+
+    document.addEventListener('click', function(e) {
+        if (editingScoreIndex !== -1 && !scoreEditPopover.contains(e.target) && !e.target.closest('.edit-score-btn')) {
+            closeScoreEdit();
+        }
+    });
+
+    // ----- 导出功能 -----
+    function extractRevisionSections(fullText) {
+        const text = fullText || '';
+        const tags = ['【基础修改版】', '【进阶修改版】', '【升格指导】', '【全文升格范文】'];
+        let first = -1;
+        tags.forEach(t => { const i = text.indexOf(t); if (i >= 0 && (first < 0 || i < first)) first = i; });
+        let mainText = text.trim();
+        const sections = {};
+        if (first >= 0) {
+            mainText = text.slice(0, first).trim();
+            let rest = text.slice(first);
+            const scoreIdx = rest.search(/\n\s*总分\s*[：:]/);
+            if (scoreIdx >= 0) rest = rest.slice(0, scoreIdx);
+            tags.forEach(t => {
+                const si = rest.indexOf(t);
+                if (si < 0) { sections[t] = ''; return; }
+                let body = rest.slice(si + t.length);
+                let end = body.length;
+                tags.forEach(t2 => {
+                    if (t2 === t) return;
+                    const j = body.indexOf(t2);
+                    if (j >= 0 && j < end) end = j;
+                });
+                sections[t] = body.slice(0, end).trim();
+            });
+        }
+        return {
+            basic: sections['【基础修改版】'] || '',
+            advanced: sections['【进阶修改版】'] || '',
+            guide: sections['【升格指导】'] || '',
+            polished: sections['【全文升格范文】'] || '',
+            mainText
+        };
+    }
+
+    // ----- 导出文本的 Markdown 清理（导出文档中不出现 md 记号） -----
+    function stripMdLines(text) {
+        return String(text || '')
+            .replace(/^[ \t]{0,3}#{1,6}[ \t]+/gm, '')
+            .replace(/^([ \t]*)[-*+][ \t]+/gm, '$1• ');
+    }
+
+    // ----- 轻量 Markdown 转换，用于 Word 导出 -----
+    function mdInlineToHtml(escapedText) {
+        let html = escapedText.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+        html = html.replace(/(^|\s)_(\S(?:[\s\S]*?\S)?)_(?=\s|$)/g, '$1<em>$2</em>');
+        return html;
+    }
+
+    function paragraphsToHtml(text) {
+        return (text || '')
+            .split(/\n\s*\n/)
+            .map(p => p.trim())
+            .filter(p => p)
+            .map(p => {
+                if (/^-{3,}$/.test(p)) {
+                    return '<hr style="margin:16px 0;border:none;border-top:1px solid #ccc;">';
+                }
+                const cleaned = stripMdLines(p);
+                const escaped = escapeHtml(cleaned).replace(/\n/g, '<br>');
+                return `<p style="margin-bottom:10px;text-indent:2em;">${mdInlineToHtml(escaped)}</p>`;
+            })
+            .join('');
+    }
+
+    function generateWordHTML(r, idx) {
+        const typeCfg = getTypeConfig(r.type);
+        const name = r.studentName ? r.studentName.trim() : `学生${idx+1}`;
+        const maxScore = r.maxScore || typeCfg.maxScore;
+        const scoreStr = (r.score && r.score !== '--' && r.score !== '错误') ? `${r.score} / ${r.maxScore}` : r.score || '--';
+        const { basic, advanced, guide, polished, mainText } = extractRevisionSections(r.fullText);
+        let detailText = mainText || r.fullText || '暂无详细批改内容';
+        detailText = detailText.replace(/(总分\s*[：:]\s*)(\d+(?:\.\d+)?)(\s*分?)/g, `$1$2分/${maxScore}分`);
+        const detailParagraphs = paragraphsToHtml(detailText);
+
+        const basicPara = paragraphsToHtml(basic);
+        const advancedPara = paragraphsToHtml(advanced);
+        const guidePara = paragraphsToHtml(guide);
+        const polishedPara = paragraphsToHtml(polished);
+
+        const hasBasic = basicPara.trim() !== '';
+        const hasAdvanced = advancedPara.trim() !== '';
+        const hasGuide = guidePara.trim() !== '';
+        const hasPolished = polishedPara.trim() !== '';
+        // 完整题目（材料与写作要求）
+        const titleSection = (r.title && r.title.trim())
+            ? `<div class="section-title">作文题目与材料</div><hr class="section-rule"><div class="article">${paragraphsToHtml(r.title)}</div>`
+            : '';
+
+        // 学生原文（识别结果）：与批改意见对照，方便学生逐句核对修改
+        const originalHtml = r.content
+            ? paragraphsToHtml(r.content)
+            : '<p style="text-indent:0;color:#8A8A8A;">（无识别原文）</p>';
+
+        return `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+            <head><meta charset='utf-8'>
+            <style>
+                /* Apple HIG：无衬线字体 + 字阶层级 + 陶土强调 + 留白 */
+                body { font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif; font-size: 14px; line-height: 1.7; color: #1A1A1A; margin: 2cm 2.2cm; }
+                h1 { text-align: center; font-size: 24px; font-weight: 600; color: #1A1A1A; margin: 0 0 8px 0; letter-spacing: 0.5px; }
+                .brand-line { font-size: 10px; color: #B0B0B0; letter-spacing: 1.2px; text-align: center; margin-bottom: 26px; }
+                .hairline { border: none; border-top: 1px solid #E5E5E5; margin: 18px 0 24px 0; }
+                .section-title { font-size: 16px; font-weight: 600; color: #C96442; margin: 0 0 4px 0; }
+                .section-rule { border: none; border-top: 2px solid #C96442; width: 48px; margin: 0 0 20px 0; }
+                .info-row { display: inline-block; width: 49%; vertical-align: top; margin: 0 0 10px 0; }
+                .info-label { font-size: 11px; color: #8A8A8A; letter-spacing: 0.4px; margin-bottom: 3px; }
+                .info-value { font-size: 14px; color: #1A1A1A; font-weight: 500; }
+                .content { margin: 0 0 28px 0; }
+                .article { background: #FAFAFA; padding: 14px 18px; border-left: 3px solid #C96442; margin: 12px 0 20px 0; }
+                .article-title { font-size: 14px; font-weight: 600; color: #C96442; margin-bottom: 8px; }
+                p { margin: 0 0 14px 0; text-indent: 2em; line-height: 1.8; }
+                .footer { margin-top: 36px; padding-top: 14px; border-top: 1px solid #EEEEEE; font-size: 10px; color: #B0B0B0; text-align: center; }
+            </style>
+            </head>
+            <body>
+                <div class="brand-line">MYCLASSROOM · 作文批改报告</div>
+                <h1>作文批改报告</h1>
+                <hr class="hairline">
+                <div class="info-row"><div class="info-label">学生姓名</div><div class="info-value">${escapeHtml(name)}</div></div>
+                <div class="info-row"><div class="info-label">作文类型</div><div class="info-value">${typeCfg.label}</div></div>
+                <div class="info-row"><div class="info-label">得分</div><div class="info-value">${escapeHtml(scoreStr)}</div></div>
+                ${titleSection}
+                <div class="section-title">批改详情</div>
+                <hr class="section-rule">
+                <div class="content">${detailParagraphs}</div>
+                <div class="section-title">学生原文（识别结果）</div>
+                <hr class="section-rule">
+                <div class="article">${originalHtml}</div>
+                ${hasBasic ? `<div class="section-title">基础文章（参考范文）</div><hr class="section-rule"><div class="article">${basicPara}</div>` : ''}
+                ${hasAdvanced ? `<div class="section-title">进阶文章（参考范文）</div><hr class="section-rule"><div class="article">${advancedPara}</div>` : ''}
+                ${hasGuide ? `<div class="section-title">升格指导（开头 / 中间 / 结尾）</div><hr class="section-rule"><div class="article">${guidePara}</div>` : ''}
+                ${hasPolished ? `<div class="section-title">全文升格范文</div><hr class="section-rule"><div class="article">${polishedPara}</div>` : ''}
+                <div class="footer">MYClassroom · 让每一堂课都活起来</div>
+            </body>
+            </html>
+        `;
+    }
+
+    // ----- 导出：服务端生成 docx / PDF（含名师点评、批注图、原文对照） -----
+    async function exportReports(indices, format) {
+        const ids = indices.map(i => results[i]).filter(r => r && r.status === 'done' && r.id).map(r => r.id);
+        if (ids.length === 0) {
+            await showAlert('没有可导出的已完成批改任务。');
+            return;
+        }
+        const resp = await fetch('/api/essay/export', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids, format })
+        });
+        if (!resp.ok) {
+            const data = await resp.json().catch(() => ({}));
+            throw new Error(data.error || '导出失败');
+        }
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        if (indices.length === 1) {
+            const r = results[indices[0]];
+            const name = (r && r.studentName) ? r.studentName.trim() : `学生${indices[0] + 1}`;
+            a.download = `${name}_批改报告.${format}`;
+        } else {
+            a.download = `批量批改报告.${format}`;
+        }
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function validDoneIndices() {
+        return Array.from(selectedIndices).filter(idx => results[idx] && results[idx].status === 'done');
+    }
+
+    async function exportReportsSelected(format) {
+        const valid = validDoneIndices();
+        if (valid.length === 0) {
+            await showAlert('选中的结果中无已完成批改的，无法导出。');
+            return;
+        }
+        try {
+            await exportReports(valid, format);
+        } catch (e) {
+            // 仅 docx 有本地兜底：服务端异常时用浏览器生成兼容 HTML 版
+            if (format === 'docx') {
+                for (const idx of valid) {
+                    downloadLocalWord(idx);
+                    await new Promise(r => setTimeout(r, 300));
+                }
+            } else {
+                await showAlert('PDF 导出失败：' + e.message);
+            }
+        }
+    }
+
+    // 本地兜底导出（HTML 兼容 .doc），服务端 docx 不可用时使用
+    function downloadLocalWord(idx) {
+        const r = results[idx];
+        if (!r) return;
+        const html = generateWordHTML(r, idx);
+        const blob = new Blob([html], { type: 'application/msword;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const name = r.studentName ? r.studentName.trim() : `学生${idx+1}`;
+        a.download = `${name}_批改报告.doc`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    // ----- 导出Excel -----
+    function exportResultsToExcel() {
+        if (typeof XLSX === 'undefined') {
+            showAlert('导出组件加载失败，请检查网络后重试。');
+            return;
+        }
+        const doneCount = results.filter(r => r.status === 'done').length;
+        if (doneCount === 0) {
+            showAlert('暂无已完成的批改结果，请先完成批改后再导出。');
+            return;
+        }
+        const rows = results.map((r, idx) => {
+            const isDone = r.status === 'done' && r.score && r.score !== '--' && r.score !== '错误';
+            return {
+                '序号': idx + 1,
+                '姓名': (r.studentName && r.studentName.trim()) ? r.studentName.trim() : `学生${idx + 1}`,
+                '类型': r.typeLabel || getTypeConfig(currentType).label,
+                '得分': isDone ? Number(r.score) : '',
+                '满分': r.maxScore || getTypeConfig(currentType).maxScore,
+                '批改详情': stripMdLines((r.fullText || '').replace(/\*\*([^*]+)\*\*/g, '$1'))
+            };
+        });
+        const ws = XLSX.utils.json_to_sheet(rows);
+        ws['!cols'] = [{ wch: 6 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 8 }, { wch: 60 }];
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, '批改结果');
+        const now = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        const fname = `作文批改结果_${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.xlsx`;
+        XLSX.writeFile(wb, fname);
+    }
+
+    // ----- 删除选中的结果 -----
+    async function deleteSelectedResults() {
+        const selected = Array.from(selectedIndices);
+        if (selected.length === 0) {
+            await showAlert('请至少选中一个结果。');
+            return;
+        }
+        const confirmed = await new Promise(resolve => {
+            showGlassModal('确认删除', `确定要删除选中的 ${selected.length} 个结果吗？此操作不可恢复。`, [
+                { label: '取消', value: false, class: 'btn-secondary' },
+                { label: '删除', value: true, class: 'btn-danger' }
+            ]).then(resolve);
+        });
+        if (!confirmed) return;
+
+        const ids = selected.map(i => results[i].id).filter(Boolean);
+        if (ids.length) {
+            try {
+                await fetch('/api/essay/jobs', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids })
+                });
+            } catch (e) {
+                console.error('后端删除失败:', e);
+            }
+        }
+
+        const sorted = selected.slice().sort((a, b) => b - a);
+        for (const idx of sorted) {
+            results.splice(idx, 1);
+        }
+        selectedIndices.clear();
+        updateAndSave();
+        await showAlert(`已成功删除 ${selected.length} 条结果。`);
+    }
+
+    // ----- 自定义模态框 -----
+    function renderCustomModal() {
+        if (recognizedTitle) {
+            customTitleContainer.innerHTML = `
+                    <div class="custom-item">
+                        <span class="text">${escapeHtml(recognizedTitle)}</span>
+                        <span class="actions">
+                            <button class="edit-title-btn"><i class="fas fa-pen"></i></button>
+                            <button class="delete-title-btn"><i class="fas fa-trash"></i></button>
+                        </span>
+                    </div>
+                `;
+            customTitleContainer.querySelector('.edit-title-btn').addEventListener('click', function() {
+                customTitleInput.value = recognizedTitle;
+                addTitleBtn.textContent = '更新';
+                editingTitle = true;
+            });
+            customTitleContainer.querySelector('.delete-title-btn').addEventListener('click', function() {
+                recognizedTitle = '';
+                customTitleInput.value = '';
+                addTitleBtn.textContent = '添加';
+                editingTitle = false;
+                renderCustomModal();
+                updateAndSave();
+            });
+        } else {
+            customTitleContainer.innerHTML = '<div class="empty-hint">暂无题目</div>';
+        }
+
+        if (essayQueue.length === 0) {
+            customEssaysContainer.innerHTML = '<div class="empty-hint">暂无作文</div>';
+        } else {
+            customEssaysContainer.innerHTML = essayQueue.map((text, idx) => `
+                    <div class="custom-item" data-index="${idx}">
+                        <span class="text">${essayNames[idx] ? `[${escapeHtml(essayNames[idx])}] ` : ''}${escapeHtml(text.substring(0, 30))}${text.length > 30 ? '...' : ''}</span>
+                        <span class="actions">
+                            <button class="edit-essay-btn" data-index="${idx}"><i class="fas fa-pen"></i></button>
+                            <button class="delete-essay-btn" data-index="${idx}"><i class="fas fa-trash"></i></button>
+                        </span>
+                    </div>
+                `).join('');
+            customEssaysContainer.querySelectorAll('.edit-essay-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const idx = parseInt(this.dataset.index);
+                    customEssayInput.value = essayQueue[idx];
+                    addEssayBtn.textContent = '更新';
+                    editingEssayIndex = idx;
+                });
+            });
+            customEssaysContainer.querySelectorAll('.delete-essay-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const idx = parseInt(this.dataset.index);
+                    essayQueue.splice(idx, 1);
+                    essayNames.splice(idx, 1);
+                    if (editingEssayIndex === idx) {
+                        editingEssayIndex = -1;
+                        addEssayBtn.textContent = '添加';
+                        customEssayInput.value = '';
+                    } else if (editingEssayIndex > idx) {
+                        editingEssayIndex--;
+                    }
+                    renderCustomModal();
+                    updateAndSave();
+                });
+            });
+        }
+    }
+
+    function updateTitlePreview() {
+        titlePreview.textContent = recognizedTitle ?
+            (recognizedTitle.substring(0, 30) + (recognizedTitle.length > 30 ? '...' : '')) : '未识别';
+    }
+
+    function updateEssayPreview() {
+        essayPreview.textContent = essayQueue.length > 0 ?
+            `已识别 ${essayQueue.length} 篇作文${essayNames.filter(n => !n).length ? `（${essayNames.filter(n => !n).length} 篇未设姓名，可点击识别条目设置）` : ``}` : '未识别';
+    }
+
+    // ----- Tab切换 -----
+    tabButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            tabButtons.forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            const target = this.dataset.tab;
+            document.querySelectorAll('.custom-panel').forEach(p => p.classList.remove('active'));
+            document.getElementById(target).classList.add('active');
+        });
+    });
+
+    // ----- 自定义模态框操作 -----
+    document.getElementById('customBtn').addEventListener('click', function() {
+        renderCustomModal();
+        customModal.classList.add('active');
+    });
+
+    function closeCustomModal() {
+        closeOverlay(customModal);
+        if (editingTitle) {
+            editingTitle = false;
+            addTitleBtn.textContent = '添加';
+            customTitleInput.value = '';
+        }
+        if (editingEssayIndex !== -1) {
+            editingEssayIndex = -1;
+            addEssayBtn.textContent = '添加';
+            customEssayInput.value = '';
+        }
+    }
+    customModalClose.addEventListener('click', closeCustomModal);
+    customCancelBtn.addEventListener('click', closeCustomModal);
+    customDoneBtn.addEventListener('click', closeCustomModal);
+
+    addTitleBtn.addEventListener('click', function() {
+        const val = customTitleInput.value.trim();
+        if (!val) return;
+        recognizedTitle = val;
+        customTitleInput.value = '';
+        editingTitle = false;
+        this.textContent = '添加';
+        updateAndSave();
+        renderCustomModal();
+    });
+
+    addEssayBtn.addEventListener('click', function() {
+        const val = customEssayInput.value.trim();
+        if (!val) return;
+        if (editingEssayIndex !== -1) {
+            essayQueue[editingEssayIndex] = val;
+            editingEssayIndex = -1;
+            this.textContent = '添加';
+        } else {
+            essayQueue.push(val);
+            essayNames.push(null);
+            essayImages.push(null);
+        }
+        customEssayInput.value = '';
+        updateAndSave();
+        renderCustomModal();
+    });
+
+    // ----- 上传逻辑 -----
+    function setupUploadBox(box, previewEl, progressEl, type) {
+        const input = box.querySelector('.file-input');
+        box.addEventListener('click', () => input.click());
+        box.addEventListener('dragover', (e) => { e.preventDefault(); box.classList.add('dragover'); });
+        box.addEventListener('dragleave', () => box.classList.remove('dragover'));
+        box.addEventListener('drop', (e) => {
+            e.preventDefault();
+            box.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                input.files = e.dataTransfer.files;
+                input.dispatchEvent(new Event('change'));
+            }
+        });
+
+        input.addEventListener('change', async function() {
+            const files = Array.from(this.files);
+            if (files.length === 0) return;
+
+            // 批量识别确定性进度条（宽度 = 已识别/总数）
+            const bar = progressEl.querySelector('.bar');
+            if (bar) {
+                bar.classList.add('determinate');
+                bar.style.width = '0%';
+            }
+            progressEl.classList.add('active');
+            previewEl.textContent = `识别中 0/${files.length}...`;
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                previewEl.textContent = `识别中 ${i+1}/${files.length}...`;
+                if (bar) {
+                    bar.style.width = `${(i / files.length * 100).toFixed(0)}%`;
+                }
+
+                const formData = new FormData();
+                formData.append('image', file);
+                formData.append('type', type);
+
+                try {
+                    const resp = await fetch('/api/essay/ocr', {
+                        method: 'POST',
+                        body: formData,
+                    });
+                    const data = await resp.json();
+                    if (data.error) {
+                        await showAlert(`文件 ${file.name} 识别失败: ${data.error}`);
+                        continue;
+                    }
+                    if (bar) {
+                        bar.style.width = `${((i + 1) / files.length * 100).toFixed(0)}%`;
+                    }
+                    const text = data.text.trim();
+                    if (type === 'title') {
+                        recognizedTitle = text;
+                        titlePreview.textContent = text.substring(0, 30) + (text.length > 30 ? '...' : '');
+                        // 记录题目草稿 ID，提交批改后才能正确删除，避免刷新后题目残留
+                        if (data.draft_id) window.titleDraftId = data.draft_id;
+                        // 自动生成 AI 示范范文
+                        generateModelEssay();
+                    } else {
+                        let studentName = null;
+                        let contentText = text;
+                        // 优先用服务端解析的姓名（含全文兜底）；否则前端再解析一次
+                        if (data.student_name) {
+                            studentName = data.student_name;
+                        }
+                        const lines = text.split(/\r?\n/);
+                        if (lines.length > 0) {
+                            const nameMatch = lines[0].match(/^\s*姓名\s*[：:]\s*(.*)$/);
+                            if (nameMatch) {
+                                const nameVal = nameMatch[1].trim();
+                                if (!studentName) studentName = (nameVal && nameVal !== '无') ? nameVal : null;
+                                contentText = lines.slice(1).join('\n').trim();
+                            }
+                        }
+                        // 兜底：第一行不是标准格式时，在全文任意位置找"姓名：XXX"
+                        if (!studentName) {
+                            const anywhere = text.match(/姓名\s*[：:]\s*([^\s，。；、,.;\n]+)/);
+                            if (anywhere && anywhere[1] && anywhere[1] !== '无') {
+                                studentName = anywhere[1].trim();
+                            }
+                        }
+                        essayQueue.push(contentText);
+                        essayNames.push(studentName);
+                        essayImages.push(data.image_path || null);
+                        // 记录正文草稿 ID：提交批改时会连同删除，
+                        // 否则刷新页面后 syncFromServer 会把已批改的作文重新拉回队列（重复批改）
+                        if (data.draft_id) essayDraftIds.push(data.draft_id);
+                        previewEl.textContent = `已识别 ${essayQueue.length} 篇作文${essayNames.filter(n => !n).length ? `（${essayNames.filter(n => !n).length} 篇未设姓名，可点击识别条目设置）` : ``}`;
+                    }
+                    updateAndSave();
+                } catch (e) {
+                    await showAlert(`文件 ${file.name} 请求失败: ${e.message}`);
+                }
+            }
+
+            progressEl.classList.remove('active');
+            if (type === 'essay') {
+                previewEl.textContent = essayQueue.length > 0 ?
+                    `已识别 ${essayQueue.length} 篇作文${essayNames.filter(n => !n).length ? `（${essayNames.filter(n => !n).length} 篇未设姓名，可点击识别条目设置）` : ``}` : '识别失败，请重试';
+            } else {
+                if (!recognizedTitle) {
+                    titlePreview.textContent = '识别失败，请重试';
+                }
+            }
+            this.value = '';
+        });
+    }
+
+    setupUploadBox(titleUpload, titlePreview, titleProgress, 'title');
+    setupUploadBox(essayUpload, essayPreview, essayProgress, 'essay');
+
+    // ----- 学生拍照上传（手机直接调起相机，照片走同一套 OCR 流程） -----
+    const essayCameraBtn = document.getElementById('essayCameraBtn');
+    const essayCameraInput = document.getElementById('essayCameraInput');
+    if (essayCameraBtn && essayCameraInput) {
+        essayCameraBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            essayCameraInput.click();
+        });
+        essayCameraInput.addEventListener('change', function() {
+            if (!this.files || this.files.length === 0) return;
+            const mainInput = essayUpload.querySelector('.file-input');
+            mainInput.files = this.files;
+            mainInput.dispatchEvent(new Event('change'));
+            this.value = '';
+        });
+    }
+
+    // ----- 提交批改 -----
+    // 前端并行提交数：与服务端批改信号量（qwen.grading_concurrency，默认 6）对齐，
+    // 批量作文同时在服务端排队批改，显著缩短总耗时
+    const MAX_CONCURRENT_GRADING = 6;
+
+    submitBtn.addEventListener('click', async function() {
+        if (isSubmitting) return;
+        if (essayQueue.length === 0) {
+            await showAlert('请先识别至少一篇作文！');
+            return;
+        }
+
+        const queueToProcess = [...essayQueue];
+        const namesToProcess = [...essayNames];
+        const imagesToProcess = [...essayImages];
+        const typeSnapshot = currentType;
+        const typeCfg = getTypeConfig(typeSnapshot);
+        essayQueue = [];
+        essayNames = [];
+        essayImages = [];
+        essayPreview.textContent = '未识别';
+
+        // 清空已提交的草稿（服务器端）
+        if (essayDraftIds.length) {
+            try {
+                await fetch('/api/essay/drafts', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: essayDraftIds })
+                });
+            } catch (e) { /* 忽略删除失败 */ }
+        }
+        if (window.titleDraftId) {
+            try {
+                await fetch('/api/essay/drafts', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: [window.titleDraftId] })
+                });
+            } catch (e) { /* 忽略 */ }
+        }
+        essayDraftIds = [];
+        window.titleDraftId = null;
+
+        results = queueToProcess.map((content, idx) => ({
+            id: null,
+            score: null,
+            fullText: '',
+            content: content,
+            imagePath: imagesToProcess[idx] || null,
+            status: 'pending',
+            studentName: namesToProcess[idx] || null,
+            type: typeSnapshot,
+            typeLabel: typeCfg.label,
+            maxScore: typeCfg.maxScore,
+            teacher_edited: false
+        }));
+        selectedIndices.clear();
+        updateAndSave();
+
+        isSubmitting = true;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在批改';
+
+        loading.classList.add('show');
+
+        // 批量暂停/继续：暂停后不再启动新任务，已运行的任务继续完成
+        let batchPaused = false;
+        const batchPauseBtn = document.getElementById('batchPauseBtn');
+        const batchPauseLabel = document.getElementById('batchPauseLabel');
+        if (batchPauseBtn) {
+            batchPauseBtn.style.display = 'inline-flex';
+            batchPauseBtn.onclick = function() {
+                batchPaused = !batchPaused;
+                batchPauseLabel.textContent = batchPaused ? '继续' : '暂停';
+                this.querySelector('i').className = batchPaused ? 'fas fa-play' : 'fas fa-pause';
+                loadingText.textContent = batchPaused
+                    ? `已暂停（${completedCount}/${total} 已完成，点"继续"恢复）`
+                    : `正在批改（${completedCount}/${total} 已完成）...`;
+            };
+        }
+
+        const total = queueToProcess.length;
+        let nextIndex = 0;
+        let completedCount = 0;
+        loadingText.textContent = `正在批改（0/${total} 已完成）...`;
+        const batchBar = document.getElementById('batchProgressBar');
+        if (batchBar) {
+            batchBar.style.width = '0%';
+        }
+
+        async function gradeOne(i) {
+            const content = queueToProcess[i];
+            results[i].status = 'processing';
+            updateAndSave();
+            try {
+                const resp = await fetch('/api/essay/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        content,
+                        type: typeSnapshot,
+                        title: recognizedTitle,
+                        student_name: namesToProcess[i] || '',
+                        image_path: imagesToProcess[i] || '',
+                        max_score: loadMaxScore(typeSnapshot),
+                        temperature: loadTemp(typeSnapshot)
+                    }),
+                });
+                const data = await resp.json();
+                if (data.error) throw new Error(data.error);
+                results[i].id = data.id;
+                attachEssayStream(data.id);
+            } catch (e) {
+                results[i].score = '错误';
+                results[i].status = 'done';
+                results[i].fullText = '请求失败: ' + e.message;
+            }
+            completedCount++;
+            loadingText.textContent = `正在批改（${completedCount}/${total} 已完成）...`;
+            if (batchBar) {
+                batchBar.style.width = `${(completedCount / total * 100).toFixed(0)}%`;
+            }
+            updateAndSave();
+        }
+
+        async function worker() {
+            while (true) {
+                // 批量暂停：等待恢复后再启动下一个任务
+                while (batchPaused) {
+                    await new Promise(r => setTimeout(r, 300));
+                }
+                const i = nextIndex;
+                if (i >= total) break;
+                nextIndex++;
+                await gradeOne(i);
+            }
+        }
+
+        const workerCount = Math.min(MAX_CONCURRENT_GRADING, total);
+        await Promise.all(Array.from({ length: workerCount }, () => worker()));
+
+        loading.classList.remove('show');
+        isSubmitting = false;
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> 提交批改';
+        if (batchPauseBtn) {
+            batchPauseBtn.style.display = 'none';
+            batchPauseLabel.textContent = '暂停';
+        }
+        // 重新同步一次以获取最终状态
+        await syncFromServer();
+    });
+
+    // ----- 弹窗关闭 -----
+    modalClose.addEventListener('click', () => {
+        closeOverlay(modalOverlay);
+        if (modalUpdateTimer) { clearInterval(modalUpdateTimer); modalUpdateTimer = null; }
+    });
+    modalOverlay.addEventListener('click', (e) => {
+        if (e.target === modalOverlay) {
+            closeOverlay(modalOverlay);
+            if (modalUpdateTimer) { clearInterval(modalUpdateTimer); modalUpdateTimer = null; }
+        }
+    });
+
+    // ----- 初始化 -----
+    async function init() {
+        // 首次从服务器同步数据
+        await syncFromServer();
+        // 设置默认作文类型
+        setActiveType('chinese', btnChinese);
+        // 定时轮询同步（跨设备）
+        setInterval(syncFromServer, 5000);
+        window.addEventListener('focus', syncFromServer);
+        // 清理可能残留的定时器
+        if (modalUpdateTimer) {
+            clearInterval(modalUpdateTimer);
+            modalUpdateTimer = null;
+        }
+        // 初始化UI
+        updateRecognitionDeleteButton();
+        updateResultDeleteButton();
+        editingRecognitionIndex = -1;
+        detailExpanded = false;
+        editExpanded = false;
+        detailZoomBtn.innerHTML = '<i class="fas fa-expand"></i>';
+        editZoomBtn.innerHTML = '<i class="fas fa-expand"></i>';
+    }
+
+    // 启动
+    init();
+</script>
+{{template "mobile_nav" .}}
+<div class="bottom-spacer"></div>
+</body>
+</html>
+{{end}}

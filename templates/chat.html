@@ -1,0 +1,3399 @@
+{{define "chat"}}
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>聊天室 - MYClassroom</title>
+    <script>
+        (function(){try{var t=localStorage.getItem('vc-theme');if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();
+    </script>
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css?v=202608322">
+    <link rel="stylesheet" href="/static/css/style.css?v=202608322">
+    <link rel="stylesheet" href="/static/css/dashboard.css?v=202608322">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.3/purify.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/contrib/auto-render.min.js"></script>
+</head>
+<body class="app-body">
+<!-- @提及横幅 -->
+<div class="mention-banner" id="mentionBanner">
+    <i class="fas fa-at"></i>
+    <span class="mention-banner-text" id="mentionBannerText"></span>
+    <button class="mention-banner-close" id="mentionBannerClose" title="关闭"><i class="fas fa-times"></i></button>
+</div>
+
+<!-- 通用内联提示 -->
+<div class="mention-banner" id="inlineToastBanner">
+    <i class="fas fa-check"></i>
+    <span class="mention-banner-text" id="inlineToastText"></span>
+    <button class="mention-banner-close" id="inlineToastClose" title="关闭"><i class="fas fa-times"></i></button>
+</div>
+
+<div class="dashboard-container">
+    {{template "sidebar" .}}
+    <main class="main-content">
+        <header class="top-bar">
+            <div class="user-info">
+                <span class="page-name">聊天室</span>
+                <span class="role-badge">{{if eq .Role "teacher"}}教师{{else}}学生{{end}}</span>
+            </div>
+            <div class="header-actions">
+                <span class="last-login">上次登录：{{.LastLogin}}</span>
+            </div>
+        </header>
+        <section class="content-panel">
+            <div class="chat-layout">
+                <div class="room-list" id="roomList">
+                    <h3>
+                        聊天室
+                        <span style="display:flex; align-items:center; gap:4px;">
+                            <button id="showCreateRoom" title="创建新聊天室"><i class="fas fa-plus"></i></button>
+                            <button id="closeRoomList" class="room-list-close-btn" title="关闭"><i class="fas fa-times"></i></button>
+                        </span>
+                    </h3>
+                    <div id="roomsContainer"></div>
+                    <div class="create-room-input" id="createRoomForm" style="display: none;">
+                        <input type="text" id="newRoomName" placeholder="房间名称" maxlength="50">
+                        <button id="confirmCreateRoom"><i class="fas fa-check"></i> <span id="confirmBtnText">创建</span></button>
+                        <button id="cancelCreateRoom"><i class="fas fa-times"></i> 取消</button>
+                    </div>
+                </div>
+                <div class="chat-area" id="chatArea">
+                    <button class="chat-toggle-btn" id="roomToggleBtn" title="切换聊天室列表" style="display:none;">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <button class="mention-jump-btn up" id="mentionJumpUp" style="display:none;" title="有人提及了你">
+                        <i class="fas fa-arrow-up"></i><span>某人提及了你</span>
+                    </button>
+                    <button class="mention-jump-btn down" id="mentionJumpDown" style="display:none;" title="有人提及了你">
+                        <i class="fas fa-arrow-down"></i><span>某人提及了你</span>
+                    </button>
+                    <div class="chat-messages" id="messagesContainer">
+                        <div class="empty-room">请选择或创建一个聊天室</div>
+                    </div>
+                    <div class="chat-input-wrap">
+                        <!-- 语音调试面板（测试人员用），紧挨弹出 -->
+                        {{if .VoiceDev}}
+                        <div class="voice-debug-panel" id="voiceDebugPanel">
+                            <div class="voice-debug-header">
+                                <span><i class="fas fa-bug"></i> 语音通话调试信息</span>
+                                <div class="voice-debug-header-actions">
+                                    <button id="voiceDebugCopyBtn" title="复制诊断信息"><i class="fas fa-copy"></i></button>
+                                    <button id="voiceDebugCloseBtn" title="关闭"><i class="fas fa-times"></i></button>
+                                </div>
+                            </div>
+                            <pre class="voice-debug-body" id="voiceDebugBody">（无数据）</pre>
+                            {{end}}
+                        </div>
+                        <div class="global-device-bar" id="globalDeviceBar">
+                            <span class="global-device-bar-label">全局设备默认值</span>
+                            <button class="device-toggle-btn" id="globalMicBtn" data-device="mic" title="麦克风（全局默认）"><i class="fas fa-microphone"></i></button>
+                            <button class="device-toggle-btn" id="globalCamBtn" data-device="cam" title="摄像头（全局默认）"><i class="fas fa-video"></i></button>
+                            <button class="device-toggle-btn" id="globalSpeakerBtn" data-device="speaker" title="扬声器（全局默认）"><i class="fas fa-volume-up"></i></button>
+                            {{if .VoiceDev}}
+                            <span class="global-device-bar-sep"></span>
+                            <button class="device-toggle-btn debug-btn" id="voiceDebugToggleBtn" title="语音通话调试信息（测试人员用）"><i class="fas fa-bug"></i></button>
+                            {{end}}
+                        </div>
+                        <div class="mention-search" id="mentionSearch"></div>
+                        <div class="chat-input" id="chatInputDesktop">
+                            <div class="more-panel" id="morePanel">
+                                <button class="more-panel-item" id="morePanelFileBtn"><span class="more-panel-icon-chip chip-file"><i class="fas fa-paperclip"></i></span><span class="more-panel-item-text"><span class="more-panel-item-title">文件发送</span><span class="more-panel-item-sub">发送图片、文档等文件</span></span></button>
+                                <button class="more-panel-item" id="morePanelVoiceBtn"><span class="more-panel-icon-chip chip-call"><i class="fas fa-headset"></i></span><span class="more-panel-item-text"><span class="more-panel-item-title">语音聊天</span><span class="more-panel-item-sub">发起或加入语音通话</span></span></button>
+                                <button class="more-panel-item" id="morePanelVoiceInputBtn"><span class="more-panel-icon-chip chip-voice"><i class="fas fa-microphone-alt"></i></span><span class="more-panel-item-text"><span class="more-panel-item-title">语音输入</span><span class="more-panel-item-sub">最长 60 秒的语音消息</span></span></button>
+                                <button class="more-panel-item" id="morePanelAIVisionBtn"><span class="more-panel-icon-chip chip-ai-vision"><i class="fas fa-robot"></i></span><span class="more-panel-item-text"><span class="more-panel-item-title">AI 识图</span><span class="more-panel-item-sub">选图后在输入框里正常提问</span></span></button>
+                            </div>
+                            <div id="quoteAreaDesktop" class="quote-area"></div>
+                            <div class="input-row">
+                                <button class="more-btn" id="moreBtn" title="更多"><i class="fas fa-plus"></i></button>
+                                <textarea id="messageInput" placeholder="输入消息... (Shift+Enter 换行)" aria-label="输入消息" disabled rows="1"></textarea>
+                                <input type="file" id="fileInput" style="display:none;" multiple>
+                                <input type="file" id="aiVisionInput" accept="image/*" style="display:none;">
+                                <button class="send-btn" id="sendButton" disabled><i class="fas fa-paper-plane"></i></button>
+                            </div>
+                            <!-- 语音输入录音条：录音时整个输入框切换为此形态 -->
+                            <div class="voice-record-bar" id="voiceRecordBar">
+                                <button class="voice-record-cancel" id="voiceRecordCancelBtn" title="取消"><i class="fas fa-trash"></i></button>
+                                <div class="voice-record-wave" id="voiceRecordWave">
+                                    <span class="rec-dot"></span>
+                                </div>
+                                <div class="voice-record-time" id="voiceRecordTime">0:00 / 1:00</div>
+                                <button class="voice-record-stop" id="voiceRecordStopBtn" title="结束并发送"><i class="fas fa-check"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="chatBanOverlay">
+                    <div class="ban-icon"><i class="fas fa-ban"></i></div>
+                    <div class="ban-title">⛔ 禁止聊天时段</div>
+                    <div class="ban-sub">当前时间不允许使用聊天室，请稍后再来</div>
+                </div>
+
+                <!-- ===== 语音聊天窗中窗 ===== -->
+                <div class="voice-overlay" id="voiceOverlay">
+                    <div class="voice-overlay-header">
+                        <button class="voice-icon-btn" id="voiceMinimizeBtn" title="缩小"><i class="fas fa-compress-alt"></i></button>
+                        <div class="voice-overlay-title"><i class="fas fa-headset"></i> <span id="voiceRoomTitle">语音聊天</span></div>
+                        <button class="voice-icon-btn voice-hangup-top" id="voiceCloseBtn" title="挂断"><i class="fas fa-phone-slash"></i></button>
+                    </div>
+                    <div class="voice-tiles" id="voiceTiles"></div>
+                    <div class="voice-controls">
+                        <button class="voice-ctrl-btn" id="voiceMicBtn" data-device="mic" title="麦克风"><i class="fas fa-microphone"></i></button>
+                        <button class="voice-ctrl-btn" id="voiceCamBtn" data-device="cam" title="摄像头"><i class="fas fa-video"></i></button>
+                        <button class="voice-ctrl-btn" id="voiceSpeakerBtn" data-device="speaker" title="扬声器"><i class="fas fa-volume-up"></i></button>
+                        <button class="voice-ctrl-btn voice-hangup" id="voiceHangupBtn" title="挂断"><i class="fas fa-phone-slash"></i></button>
+                    </div>
+                </div>
+
+                <!-- 语音聊天缩小后的悬浮胶囊-->
+                <div class="voice-mini-pill" id="voiceMiniPill">
+                    <i class="fas fa-headset"></i>
+                    <span>语音聊天中</span>
+                    <button id="voiceExpandBtn" title="放大"><i class="fas fa-expand-alt"></i></button>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+{{template "mobile_nav" .}}
+<div class="bottom-spacer"></div>
+<script>
+    //  全局状态
+    let currentRoomId = null;
+    let rooms = [];
+    let messages = [];
+    let pollInterval = null;
+    let users = [];
+    let mentionUsers = [];
+    let mentionActive = false;
+    let mentionIndex = -1;
+    let activeStreamContents = {};
+    const role = "{{.Role}}";
+    const currentUsername = "{{.Username}}";
+    const currentUserID = parseInt("{{.UserID}}");
+    let editingRoomId = null;
+    let deletingRoomId = null;
+    let restoringRoomId = null;
+    let isFirstDeleteRender = false;
+    let isFirstRestoreRender = false;
+
+    let quotes = [];
+    let pendingImageAttachment = null; // { fileId, filename } — AI 识图待发送的图片，随下一条消息一起发出
+    let lastMessagesSnapshot = null;
+    let lastRenderedRoomId = null;
+    let hasActiveStream = false;
+    let confirmingDeleteMsgId = null;
+
+    // 时段限制
+    let chatTimeRules = [];
+    let isChatBanned = false;
+
+    //  头像工具：暖色派生色板（与主题陶土/橄榄/雾蓝体系一致，白字对比度全部达标）
+    function getAvatarColor(username) {
+        let hash = 0;
+        for (let i = 0; i < username.length; i++) {
+            hash = username.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const colors = [
+            '#c96442', '#788c5d', '#6a9bcc', '#8f7bb8', '#d97706', '#3a9ea5',
+            '#b0532f', '#6e8a52', '#5c8bb8', '#7c6aa8', '#c05f11', '#2f8a92'
+        ];
+        return colors[Math.abs(hash) % colors.length];
+    }
+    function avatarHTML(username, size = 36) {
+        const color = getAvatarColor(username);
+        const initial = username.charAt(0).toUpperCase();
+        return `<div class="message-avatar" style="background:${color}; width:${size}px; height:${size}px; font-size:${size*0.45}px;">${initial}</div>`;
+    }
+
+    //  DOM 引用
+    const roomsContainer = document.getElementById('roomsContainer');
+    const messagesContainer = document.getElementById('messagesContainer');
+    const messageInput = document.getElementById('messageInput');
+    const sendButton = document.getElementById('sendButton');
+    const showCreateBtn = document.getElementById('showCreateRoom');
+    const createForm = document.getElementById('createRoomForm');
+    const newRoomName = document.getElementById('newRoomName');
+    const confirmCreateBtn = document.getElementById('confirmCreateRoom');
+    const confirmBtnText = document.getElementById('confirmBtnText');
+    const cancelCreateBtn = document.getElementById('cancelCreateRoom');
+    const mentionSearch = document.getElementById('mentionSearch');
+    const quoteAreaDesktop = document.getElementById('quoteAreaDesktop');
+    const quoteAreaMobile = document.getElementById('quoteAreaMobile');
+    const roomToggleBtn = document.getElementById('roomToggleBtn');
+    const roomList = document.querySelector('.room-list');
+    const closeRoomListBtn = document.getElementById('closeRoomList');
+    const chatBanOverlay = document.getElementById('chatBanOverlay');
+
+    // 桌面文件相关
+    const fileBtn = document.getElementById('fileBtn');
+    const fileInput = document.getElementById('fileInput');
+
+    // 移动端元素由 mobile_nav 提供。
+
+    //  工具函数
+    function escapeHtml(text) {
+        if (!text) return '';
+        return String(text).replace(/[&<>"]/g, m => {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            if (m === '"') return '&quot;';
+            return m;
+        });
+    }
+
+    if (window.marked) {
+        marked.setOptions({ breaks: true, gfm: true, html: true });
+    }
+    function renderMarkdown(text) {
+        if (!text) return '';
+        const raw = String(text);
+        if (!window.marked || !window.DOMPurify) {
+            return escapeHtml(raw).replace(/\n/g, '<br>');
+        }
+        // 先把 LaTeX 片段（$$...$$ / $...$）用占位符保护起来，避免公式里的下划线、星号
+        // 被 Markdown 解析器当成斜体/加粗语法处理（比如 $x_1^2$ 里的下划线）；
+        // Markdown 解析完成后再还原成原始文本，交给下面的 KaTeX 统一渲染。
+        const mathStore = [];
+        const protectedText = raw.replace(/\$\$([\s\S]+?)\$\$|\$((?:[^$\\\n]|\\.)+?)\$/g, (match) => {
+            const idx = mathStore.length;
+            mathStore.push(match);
+            return `@@MATH${idx}@@`;
+        });
+        const html = marked.parse(protectedText);
+        const restored = html.replace(/@@MATH(\d+)@@/g, (_, idx) => {
+            const seg = mathStore[parseInt(idx, 10)];
+            return seg ? escapeHtml(seg) : '';
+        });
+        return DOMPurify.sanitize(restored, {
+            FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form'],
+            FORBID_ATTR: ['onerror', 'onload', 'onclick']
+        });
+    }
+
+    // 在给定容器里把 $...$ / $$...$$ 渲染成排版好的公式（KaTeX）。
+    // renderMarkdown() 只负责把公式原样保留到 HTML 里，真正的公式排版在这里、
+    // 插入 DOM 之后统一做；CDN 加载失败或公式语法有误时安静跳过，不影响其余消息正常显示。
+    function renderMathIn(container) {
+        if (!container || typeof window.renderMathInElement !== 'function') return;
+        try {
+            renderMathInElement(container, {
+                delimiters: [
+                    { left: '$$', right: '$$', display: true },
+                    { left: '$', right: '$', display: false }
+                ],
+                throwOnError: false
+            });
+        } catch (e) {
+            // 忽略单条渲染失败，不影响其它消息
+        }
+    }
+
+    function formatTime(t) {
+        const d = new Date(t);
+        return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    //  表情反应系统
+    const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🎉'];
+    let reactionPicker = null;
+    let reactionPickerForMsgId = null;
+
+    function ensureReactionPicker() {
+        if (reactionPicker) return reactionPicker;
+        reactionPicker = document.createElement('div');
+        reactionPicker.className = 'reaction-picker';
+        reactionPicker.innerHTML = REACTION_EMOJIS.map(e => `<button type="button" data-emoji="${e}">${e}</button>`).join('');
+        document.body.appendChild(reactionPicker);
+        reactionPicker.addEventListener('click', function(e) {
+            const btn = e.target.closest('button[data-emoji]');
+            if (!btn || !reactionPickerForMsgId) return;
+            e.stopPropagation();
+            btn.classList.toggle('selected');
+            toggleReaction(reactionPickerForMsgId, btn.dataset.emoji);
+        });
+        document.addEventListener('click', function(e) {
+            if (reactionPicker.classList.contains('active') &&
+                !reactionPicker.contains(e.target) &&
+                !e.target.closest('.reaction-trigger')) {
+                closeReactionPicker();
+            }
+        });
+        window.addEventListener('scroll', handleScrollClose, true);
+        window.addEventListener('resize', closeReactionPicker);
+        return reactionPicker;
+    }
+
+    function copyTextToClipboard(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+            return navigator.clipboard.writeText(text);
+        }
+        return new Promise((resolve, reject) => {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                const ok = document.execCommand('copy');
+                document.body.removeChild(ta);
+                ok ? resolve() : reject(new Error('execCommand copy failed'));
+            } catch (err) {
+                reject(err);
+            }
+        });
+    }
+
+    function copyMessageContent(msgId) {
+        const msg = messages.find(m => m.id === msgId);
+        const text = (msg && !msg.is_recalled) ? (msg.content || '') : '';
+        if (!text) {
+            showInlineToast('无可复制的内容');
+            return;
+        }
+        copyTextToClipboard(text).then(() => {
+            showInlineToast('已复制到剪贴板');
+        }).catch(() => {
+            showInlineToast('复制失败，请手动复制');
+        });
+    }
+
+    let suppressScrollClose = 0;
+    function markOwnLayoutChange() {
+        suppressScrollClose = Date.now() + 200;
+    }
+    function handleScrollClose() {
+        if (Date.now() < suppressScrollClose) return;
+        closeReactionPicker();
+    }
+
+    function closeReactionPicker() {
+        if (!reactionPicker) return;
+        reactionPicker.classList.remove('active');
+        document.querySelectorAll('.reaction-trigger.active').forEach(b => b.classList.remove('active'));
+        reactionPickerForMsgId = null;
+    }
+
+    function syncReactionPickerSelection(msgId) {
+        if (!reactionPicker || reactionPickerForMsgId !== msgId) return;
+        const msg = messages.find(m => m.id === msgId);
+        const mine = (msg && msg.user_reactions) || [];
+        reactionPicker.querySelectorAll('button[data-emoji]').forEach(btn => {
+            btn.classList.toggle('selected', mine.includes(btn.dataset.emoji));
+        });
+    }
+
+    function openReactionPicker(triggerBtn, msgId) {
+        const picker = ensureReactionPicker();
+        const msgIdNum = parseInt(msgId);
+        if (reactionPickerForMsgId === msgIdNum && picker.classList.contains('active')) {
+            closeReactionPicker();
+            return;
+        }
+        document.querySelectorAll('.reaction-trigger.active').forEach(b => b.classList.remove('active'));
+        triggerBtn.classList.add('active');
+        reactionPickerForMsgId = msgIdNum;
+        picker.classList.add('active');
+        syncReactionPickerSelection(msgIdNum);
+
+        const rect = triggerBtn.getBoundingClientRect();
+        const pickerWidth = REACTION_EMOJIS.length * 34 + 20;
+        let left = rect.left + rect.width / 2 - pickerWidth / 2;
+        left = Math.max(8, Math.min(left, window.innerWidth - pickerWidth - 8));
+        let top = rect.top - 48;
+        if (top < 8) top = rect.bottom + 8;
+        picker.style.left = left + 'px';
+        picker.style.top = top + 'px';
+    }
+
+    function renderMessageReactions(msg) {
+        const msgRow = messagesContainer.querySelector(`.message-row[data-msg-id="${msg.id}"]`);
+        if (!msgRow) return;
+        markOwnLayoutChange();
+        const oldReactions = msgRow.querySelector('.message-reactions');
+        if (oldReactions) oldReactions.remove();
+        const counts = msg.reactions || {};
+        const mine = msg.user_reactions || [];
+        const types = Object.keys(counts).filter(t => counts[t] > 0);
+        if (types.length === 0) return;
+        const pillsHtml = types.map(type => {
+            const isMine = mine.includes(type);
+            return `<span class="reaction-pill${isMine ? ' mine' : ''}" data-msg-id="${msg.id}" data-emoji="${type}">${type}<span class="count">${counts[type]}</span></span>`;
+        }).join('');
+        const reactionsDiv = document.createElement('div');
+        reactionsDiv.className = 'message-reactions';
+        reactionsDiv.innerHTML = pillsHtml;
+        const messageBubble = msgRow.querySelector('.message');
+        if (messageBubble) {
+            messageBubble.insertAdjacentElement('afterend', reactionsDiv);
+        } else {
+            msgRow.appendChild(reactionsDiv);
+        }
+    }
+
+    const reactionInFlight = new Map();
+
+    async function toggleReaction(msgId, emoji) {
+        const key = `${msgId}:${emoji}`;
+        const prior = reactionInFlight.get(key) || Promise.resolve();
+        const task = prior.then(() => doToggleReaction(msgId, emoji)).catch(() => {});
+        reactionInFlight.set(key, task);
+        try {
+            await task;
+        } finally {
+            if (reactionInFlight.get(key) === task) reactionInFlight.delete(key);
+        }
+    }
+
+    async function doToggleReaction(msgId, emoji) {
+        const msg = messages.find(m => m.id === msgId);
+        if (!msg) return;
+        msg.reactions = msg.reactions || {};
+        msg.user_reactions = msg.user_reactions || [];
+        const alreadyMine = msg.user_reactions.includes(emoji);
+        const prevReactions = { ...msg.reactions };
+        const prevUserReactions = [...msg.user_reactions];
+        if (alreadyMine) {
+            msg.user_reactions = msg.user_reactions.filter(t => t !== emoji);
+            msg.reactions[emoji] = Math.max(0, (msg.reactions[emoji] || 1) - 1);
+        } else {
+            msg.user_reactions = [...msg.user_reactions, emoji];
+            msg.reactions[emoji] = (msg.reactions[emoji] || 0) + 1;
+        }
+        renderMessageReactions(msg);
+        syncReactionPickerSelection(msgId);
+
+        try {
+            const res = await fetch(`/api/messages/${msgId}/reaction`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reaction_type: emoji })
+            });
+            if (!res.ok) throw new Error('reaction request failed');
+            const data = await res.json();
+            msg.reactions = data.reactions || {};
+            msg.user_reactions = data.user_reactions || [];
+            renderMessageReactions(msg);
+            syncReactionPickerSelection(msgId);
+        } catch (err) {
+            console.error('[reaction] 切换表情失败', err);
+            msg.reactions = prevReactions;
+            msg.user_reactions = prevUserReactions;
+            renderMessageReactions(msg);
+            syncReactionPickerSelection(msgId);
+        }
+    }
+
+    document.addEventListener('click', function(e) {
+        const trigger = e.target.closest('.reaction-trigger');
+        if (trigger) {
+            e.stopPropagation();
+            openReactionPicker(trigger, trigger.dataset.msgId);
+            return;
+        }
+        const copyTrigger = e.target.closest('.msg-copy-trigger');
+        if (copyTrigger) {
+            e.stopPropagation();
+            copyMessageContent(parseInt(copyTrigger.dataset.msgId));
+            return;
+        }
+        const pill = e.target.closest('.reaction-pill');
+        if (pill) {
+            e.stopPropagation();
+            toggleReaction(parseInt(pill.dataset.msgId), pill.dataset.emoji);
+        }
+    });
+
+    function renderReactionPills(msg) {
+        const counts = msg.reactions || {};
+        const mine = msg.user_reactions || [];
+        const types = Object.keys(counts).filter(t => counts[t] > 0);
+        if (types.length === 0) return '';
+        const pills = types.map(type => {
+            const isMine = mine.includes(type);
+            return `<span class="reaction-pill${isMine ? ' mine' : ''}" data-msg-id="${msg.id}" data-emoji="${type}">${type}<span class="count">${counts[type]}</span></span>`;
+        }).join('');
+        return `<div class="message-reactions">${pills}</div>`;
+    }
+
+    //  通用内联提示
+    let inlineToastTimer = null;
+    const inlineToastEl = document.getElementById('inlineToastBanner');
+    const inlineToastTextEl = document.getElementById('inlineToastText');
+    const inlineToastCloseBtn = document.getElementById('inlineToastClose');
+    function showInlineToast(message) {
+        if (!inlineToastEl || !inlineToastTextEl) return;
+        inlineToastTextEl.textContent = message;
+        inlineToastEl.classList.add('show');
+        clearTimeout(inlineToastTimer);
+        inlineToastTimer = setTimeout(() => inlineToastEl.classList.remove('show'), 2200);
+    }
+    if (inlineToastCloseBtn) {
+        inlineToastCloseBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            inlineToastEl.classList.remove('show');
+            clearTimeout(inlineToastTimer);
+        });
+    }
+
+    //  磨砂玻璃模态框
+    function showGlassModal(title, message, buttons) {
+        return new Promise((resolve) => {
+            let overlay = document.getElementById('glassModalOverlay');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'glassModalOverlay';
+                overlay.className = 'glass-modal-overlay';
+                overlay.innerHTML = `
+                    <div class="glass-modal">
+                        <div class="modal-icon" id="modalIcon"><i class="fas fa-info-circle"></i></div>
+                        <h3 id="modalTitle"></h3>
+                        <p id="modalMessage"></p>
+                        <div class="modal-actions" id="modalActions"></div>
+                    </div>
+                `;
+                document.body.appendChild(overlay);
+            }
+            const icon = overlay.querySelector('#modalIcon');
+            const titleEl = overlay.querySelector('#modalTitle');
+            const msgEl = overlay.querySelector('#modalMessage');
+            const actionsEl = overlay.querySelector('#modalActions');
+
+            titleEl.textContent = title;
+            msgEl.textContent = message;
+            actionsEl.innerHTML = '';
+            buttons.forEach((btn) => {
+                const button = document.createElement('button');
+                button.textContent = btn.label;
+                button.className = btn.class || 'btn-primary';
+                button.addEventListener('click', () => {
+                    closeOverlay(overlay);
+                    resolve(btn.value);
+                });
+                actionsEl.appendChild(button);
+            });
+            icon.innerHTML = '<i class="fas fa-info-circle"></i>';
+            overlay.classList.add('active');
+        });
+    }
+    function showConfirm(title, message) {
+        return showGlassModal(title, message, [
+            { label: '取消', value: false, class: 'btn-secondary' },
+            { label: '确认', value: true, class: 'btn-primary' }
+        ]);
+    }
+
+    //  @ 提及通知
+    let pendingMentions = [];
+    let shownBannerMentionIds = new Set();
+    let mentionBannerTimer = null;
+    let mentionScrollThrottle = null;
+    const mentionBannerEl = document.getElementById('mentionBanner');
+    const mentionBannerTextEl = document.getElementById('mentionBannerText');
+    const mentionJumpUpBtn = document.getElementById('mentionJumpUp');
+    const mentionJumpDownBtn = document.getElementById('mentionJumpDown');
+
+    function isMentionMessageVisible(messageId) {
+        const row = messagesContainer.querySelector(`.message-row[data-msg-id="${messageId}"]`);
+        if (!row) return false;
+        const containerRect = messagesContainer.getBoundingClientRect();
+        const rowRect = row.getBoundingClientRect();
+        return rowRect.top >= containerRect.top - 4 && rowRect.bottom <= containerRect.bottom + 4;
+    }
+
+    function scrollToMessage(messageId) {
+        const row = messagesContainer.querySelector(`.message-row[data-msg-id="${messageId}"]`);
+        if (row) {
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            row.classList.add('mention-highlight');
+            setTimeout(() => row.classList.remove('mention-highlight'), 1600);
+        }
+    }
+
+    async function markMentionsSeen(payload) {
+        try {
+            await fetch('/api/mentions/seen', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (window.refreshSidebarMentionBadge) window.refreshSidebarMentionBadge();
+        } catch (err) {
+            console.error('[mention] 标记已读失败', err);
+        }
+    }
+
+    function updateMentionJumpButtons() {
+        if (!mentionJumpUpBtn || !mentionJumpDownBtn) return;
+        if (!pendingMentions.length) {
+            mentionJumpUpBtn.style.display = 'none';
+            mentionJumpDownBtn.style.display = 'none';
+            return;
+        }
+        const containerRect = messagesContainer.getBoundingClientRect();
+        let hasAbove = false, hasBelow = false;
+        pendingMentions.forEach(m => {
+            const row = messagesContainer.querySelector(`.message-row[data-msg-id="${m.message_id}"]`);
+            if (!row) { hasBelow = true; return; }
+            const rowRect = row.getBoundingClientRect();
+            if (rowRect.top < containerRect.top) hasAbove = true;
+            else if (rowRect.bottom > containerRect.bottom) hasBelow = true;
+        });
+        mentionJumpUpBtn.style.display = hasAbove ? 'flex' : 'none';
+        mentionJumpDownBtn.style.display = hasBelow ? 'flex' : 'none';
+    }
+
+    function checkVisiblePendingMentions() {
+        if (!pendingMentions.length) return;
+        const stillPending = pendingMentions.filter(m => !isMentionMessageVisible(m.message_id));
+        if (stillPending.length !== pendingMentions.length) {
+            pendingMentions = stillPending;
+            updateMentionJumpButtons();
+        }
+    }
+
+    if (messagesContainer) {
+        messagesContainer.addEventListener('scroll', function() {
+            if (mentionScrollThrottle) return;
+            mentionScrollThrottle = setTimeout(() => {
+                mentionScrollThrottle = null;
+                checkVisiblePendingMentions();
+            }, 300);
+        });
+    }
+
+    function showMentionBanner(mention) {
+        if (!mentionBannerEl) return;
+        const isOtherRoom = mention.room_id !== currentRoomId;
+        const roomLabel = isOtherRoom ? `「${mention.room_name || '其他聊天室'}」· ` : '';
+        mentionBannerTextEl.textContent = `${roomLabel}${mention.mentioner_username} 提到了你：${mention.content_snippet || ''}`;
+        mentionBannerEl.classList.add('show');
+        mentionBannerEl.onclick = function() { jumpToMention(mention); };
+        clearTimeout(mentionBannerTimer);
+        mentionBannerTimer = setTimeout(() => mentionBannerEl.classList.remove('show'), 6000);
+    }
+
+    const mentionBannerCloseBtn = document.getElementById('mentionBannerClose');
+    if (mentionBannerCloseBtn) {
+        mentionBannerCloseBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            mentionBannerEl.classList.remove('show');
+            clearTimeout(mentionBannerTimer);
+        });
+    }
+
+    async function jumpToMention(mention) {
+        if (mentionBannerEl) mentionBannerEl.classList.remove('show');
+        clearTimeout(mentionBannerTimer);
+        if (mention.room_id !== currentRoomId) {
+            currentRoomId = mention.room_id;
+            saveLastRoom(currentRoomId);
+            renderRooms();
+            await loadMessages(currentRoomId, false);
+        }
+        scrollToMessage(mention.message_id);
+        await markMentionsSeen({ mention_ids: [mention.id] });
+        pendingMentions = pendingMentions.filter(m => m.id !== mention.id);
+        updateMentionJumpButtons();
+    }
+
+    function jumpToNearestMention(direction) {
+        if (!pendingMentions.length) return;
+        const containerRect = messagesContainer.getBoundingClientRect();
+        let target = null;
+        for (const m of pendingMentions) {
+            const row = messagesContainer.querySelector(`.message-row[data-msg-id="${m.message_id}"]`);
+            if (!row) continue;
+            const rowRect = row.getBoundingClientRect();
+            if (direction === 'up' && rowRect.top < containerRect.top) { target = m; break; }
+            if (direction === 'down' && rowRect.bottom > containerRect.bottom) { target = m; break; }
+        }
+        if (target) {
+            scrollToMessage(target.message_id);
+            pendingMentions = pendingMentions.filter(m => m.id !== target.id);
+            setTimeout(updateMentionJumpButtons, 500);
+        }
+    }
+    if (mentionJumpUpBtn) mentionJumpUpBtn.addEventListener('click', () => jumpToNearestMention('up'));
+    if (mentionJumpDownBtn) mentionJumpDownBtn.addEventListener('click', () => jumpToNearestMention('down'));
+
+    async function refreshPendingMentions(roomId) {
+        if (!roomId) {
+            pendingMentions = [];
+            updateMentionJumpButtons();
+            return;
+        }
+        try {
+            const res = await fetch(`/api/mentions/pending?room_id=${roomId}`);
+            if (!res.ok) return;
+            const list = await res.json();
+            pendingMentions = list || [];
+            updateMentionJumpButtons();
+            if (pendingMentions.length) {
+                markMentionsSeen({ mention_ids: pendingMentions.map(m => m.id) });
+            }
+        } catch (err) {
+            console.error('[mention] 获取待处理提及失败', err);
+        }
+    }
+
+    function pickLatestPerRoom(list) {
+        const byRoom = new Map();
+        for (const m of list) {
+            const existing = byRoom.get(m.room_id);
+            if (!existing) { byRoom.set(m.room_id, m); continue; }
+            const t = v => (v.created_at ? new Date(v.created_at).getTime() : v.id);
+            if (t(m) > t(existing)) byRoom.set(m.room_id, m);
+        }
+        return byRoom;
+    }
+
+    async function refreshGlobalPendingMentions() {
+        try {
+            const res = await fetch('/api/mentions/pending');
+            if (!res.ok) return;
+            const list = await res.json();
+            if (!Array.isArray(list) || !list.length) return;
+            const others = list.filter(m => m.room_id !== currentRoomId && !shownBannerMentionIds.has(m.id));
+            if (!others.length) return;
+            const latestPerRoom = pickLatestPerRoom(others);
+            const next = latestPerRoom.values().next().value;
+            if (next) {
+                shownBannerMentionIds.add(next.id);
+                showMentionBanner(next);
+            }
+        } catch (err) {
+            console.error('[mention] 获取跨聊天室提及失败', err);
+        }
+    }
+
+    //  滚动控制
+    function isScrolledToBottom() {
+        const container = messagesContainer;
+        return container.scrollTop + container.clientHeight >= container.scrollHeight - 10;
+    }
+    function saveScrollPosition() {
+        if (currentRoomId) {
+            localStorage.setItem('chat_scroll_' + currentRoomId, messagesContainer.scrollTop);
+        }
+    }
+    function restoreScrollPosition(roomId) {
+        const key = 'chat_scroll_' + roomId;
+        const saved = localStorage.getItem(key);
+        if (saved !== null) {
+            messagesContainer.scrollTop = parseInt(saved, 10);
+        } else {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+    }
+    function scrollToBottom() {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+    function lastRoomKey() {
+        return 'chat_last_room_' + currentUsername;
+    }
+    function saveLastRoom(roomId) {
+        if (roomId) localStorage.setItem(lastRoomKey(), String(roomId));
+    }
+    function getLastRoom() {
+        const saved = localStorage.getItem(lastRoomKey());
+        return saved !== null ? parseInt(saved, 10) : null;
+    }
+    function clearLastRoom() {
+        localStorage.removeItem(lastRoomKey());
+    }
+
+    //  API 调用
+    async function apiFetch(url, opts = {}) {
+        const resp = await fetch(url, {
+            headers: { 'Content-Type': 'application/json' },
+            ...opts,
+        });
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({ error: '请求失败' }));
+            throw new Error(err.error || '请求失败');
+        }
+        return resp.json();
+    }
+
+    //  聊天时段规则
+    function normalizeRule(rule) {
+        return {
+            mode: rule.mode ?? rule.Mode,
+            day_of_week: rule.day_of_week ?? rule.DayOfWeek,
+            specific_date: rule.specific_date ?? rule.SpecificDate,
+            start_time: rule.start_time ?? rule.StartTime,
+            end_time: rule.end_time ?? rule.EndTime,
+        };
+    }
+
+    async function loadChatTimeRules() {
+        try {
+            const data = await apiFetch('/api/chat_time_rules');
+            chatTimeRules = (Array.isArray(data) ? data : []).map(normalizeRule);
+            checkChatBan();
+        } catch (e) {
+            console.error('加载聊天时段规则失败:', e);
+            chatTimeRules = [];
+            checkChatBan();
+        }
+    }
+
+    function checkChatBan() {
+        if (role === 'teacher') {
+            isChatBanned = false;
+            applyBanOverlay();
+            return;
+        }
+        if (chatTimeRules.length === 0) {
+            isChatBanned = false;
+            applyBanOverlay();
+            return;
+        }
+        const now = new Date();
+        const currentDay = now.getDay();
+        const currentTime = now.getHours() * 60 + now.getMinutes();
+        let allowed = false;
+        for (const rule of chatTimeRules) {
+            const startMin = timeToMinutes(rule.start_time);
+            const endMin = timeToMinutes(rule.end_time);
+            if (rule.mode === 'weekday') {
+                const ruleDay = rule.day_of_week;
+                const today = currentDay === 0 ? 7 : currentDay;
+                if (ruleDay === today) {
+                    if (currentTime >= startMin && currentTime < endMin) {
+                        allowed = true;
+                        break;
+                    }
+                }
+            } else if (rule.mode === 'date') {
+                const ruleDate = new Date(rule.specific_date + 'T00:00:00');
+                if (ruleDate.toDateString() === now.toDateString()) {
+                    if (currentTime >= startMin && currentTime < endMin) {
+                        allowed = true;
+                        break;
+                    }
+                }
+            }
+        }
+        isChatBanned = !allowed;
+        applyBanOverlay();
+    }
+
+    function timeToMinutes(timeStr) {
+        if (!timeStr) return 0;
+        const isoMatch = /T(\d{2}):(\d{2})/.exec(timeStr);
+        if (isoMatch) {
+            return parseInt(isoMatch[1]) * 60 + parseInt(isoMatch[2]);
+        }
+        const parts = timeStr.split(':');
+        return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+    }
+
+    function applyBanOverlay() {
+        if (!chatBanOverlay) return;
+        if (isChatBanned) {
+            chatBanOverlay.classList.add('show');
+            messageInput.disabled = true;
+            sendButton.disabled = true;
+            const mobileInput = document.getElementById('messageInputMobile');
+            const mobileSend = document.getElementById('sendButtonMobile');
+            if (mobileInput) mobileInput.disabled = true;
+            if (mobileSend) mobileSend.disabled = true;
+        } else {
+            chatBanOverlay.classList.remove('show');
+            if (currentRoomId) {
+                messageInput.disabled = false;
+                sendButton.disabled = false;
+                const mobileInput = document.getElementById('messageInputMobile');
+                const mobileSend = document.getElementById('sendButtonMobile');
+                if (mobileInput) mobileInput.disabled = false;
+                if (mobileSend) mobileSend.disabled = false;
+            } else {
+                messageInput.disabled = true;
+                sendButton.disabled = true;
+                const mobileInput = document.getElementById('messageInputMobile');
+                const mobileSend = document.getElementById('sendButtonMobile');
+                if (mobileInput) mobileInput.disabled = true;
+                if (mobileSend) mobileSend.disabled = true;
+            }
+        }
+    }
+
+    //  用户、房间、消息加载
+    async function loadUsers() {
+        try {
+            users = await apiFetch('/api/users');
+            users = users.filter(u => u.username !== currentUsername);
+            users.unshift({ username: 'AI', full_name: 'AI 助手' });
+        } catch (e) {
+            console.error('加载用户列表失败:', e);
+            users = [{ username: 'AI', full_name: 'AI 助手' }];
+        }
+    }
+
+    async function loadRooms() {
+        try {
+            const newRooms = await apiFetch('/api/rooms');
+            if (currentRoomId !== null) {
+                const stillExists = newRooms.some(r => r.id === currentRoomId);
+                if (!stillExists) {
+                    currentRoomId = null;
+                    clearLastRoom();
+                }
+            }
+            if (deletingRoomId !== null) {
+                const stillExists = newRooms.some(r => r.id === deletingRoomId);
+                if (!stillExists) {
+                    deletingRoomId = null;
+                    isFirstDeleteRender = false;
+                }
+            }
+            if (restoringRoomId !== null) {
+                const stillExists = newRooms.some(r => r.id === restoringRoomId);
+                if (!stillExists) {
+                    restoringRoomId = null;
+                    isFirstRestoreRender = false;
+                }
+            }
+            rooms = newRooms;
+            renderRooms();
+            if (currentRoomId === null && rooms.length > 0) {
+                const lastRoomId = getLastRoom();
+                const stillExists = lastRoomId !== null && rooms.some(r => r.id === lastRoomId);
+                currentRoomId = stillExists ? lastRoomId : rooms[0].id;
+                saveLastRoom(currentRoomId);
+                loadMessages(currentRoomId);
+            }
+            if (rooms.length === 0) {
+                currentRoomId = null;
+                clearLastRoom();
+                messages = [];
+                renderMessages();
+            }
+        } catch (e) {
+            console.error('加载房间列表失败:', e);
+            rooms = [];
+            renderRooms();
+        }
+    }
+
+    async function loadMessages(roomId, restorePos = true) {
+        if (!roomId) {
+            messages = [];
+            renderMessages();
+            messageInput.disabled = true;
+            sendButton.disabled = true;
+            const mobileInput = document.getElementById('messageInputMobile');
+            const mobileSend = document.getElementById('sendButtonMobile');
+            if (mobileInput) mobileInput.disabled = true;
+            if (mobileSend) mobileSend.disabled = true;
+            return;
+        }
+        const wasAtBottom = isScrolledToBottom();
+        messageInput.disabled = false;
+        sendButton.disabled = false;
+        const mobileInput = document.getElementById('messageInputMobile');
+        const mobileSend = document.getElementById('sendButtonMobile');
+        if (mobileInput) mobileInput.disabled = false;
+        if (mobileSend) mobileSend.disabled = false;
+        if (isChatBanned) {
+            messageInput.disabled = true;
+            sendButton.disabled = true;
+            if (mobileInput) mobileInput.disabled = true;
+            if (mobileSend) mobileSend.disabled = true;
+        }
+        try {
+            const data = await apiFetch(`/api/rooms/${roomId}/messages`);
+            if (roomId !== currentRoomId) return;
+            messages = data;
+            mergeActiveStreams();
+            renderMessages();
+            refreshPendingMentions(roomId);
+            if (restorePos) {
+                restoreScrollPosition(roomId);
+            } else if (wasAtBottom) {
+                scrollToBottom();
+            }
+            messageInput.focus();
+        } catch (e) {
+            console.error('加载消息失败:', e);
+        }
+    }
+
+    function mergeActiveStreams() {
+        for (const idStr in activeStreamContents) {
+            const id = parseInt(idStr, 10);
+            const local = activeStreamContents[idStr];
+            const msg = messages.find(m => m.id === id);
+            if (msg && local.length >= (msg.content || '').length) {
+                msg.content = local;
+                msg.is_streaming = true;
+            }
+        }
+    }
+
+    //  引用系统
+    function renderQuotes() {
+        const hasQuotes = quotes.length > 0;
+        const hasImage = !!pendingImageAttachment;
+        const areas = [quoteAreaDesktop, quoteAreaMobile].filter(el => el);
+        areas.forEach(area => {
+            if (!area) return;
+            if (!hasQuotes && !hasImage) {
+                area.classList.remove('has-quotes');
+                area.innerHTML = '';
+                return;
+            }
+            area.classList.add('has-quotes');
+            let html = quotes.map((q, idx) => {
+                let selfTag = '';
+                if (q.isSelf) {
+                    selfTag = `<span class="quote-self-tag">(自己)</span>`;
+                }
+                return `
+                    <div class="quote-item" data-idx="${idx}">
+                        <span class="quote-content">${selfTag}${escapeHtml(q.username)}：${escapeHtml(q.displayContent)}</span>
+                        <button class="quote-remove" data-idx="${idx}"><i class="fas fa-times"></i></button>
+                    </div>
+                `;
+            }).join('');
+            if (hasImage) {
+                html += `
+                    <div class="quote-item">
+                        <span class="quote-content">📷 已附加图片：${escapeHtml(pendingImageAttachment.filename)}（发送后 @AI 可识图）</span>
+                        <button class="quote-remove remove-image-attachment"><i class="fas fa-times"></i></button>
+                    </div>
+                `;
+            }
+            area.innerHTML = html;
+            area.querySelectorAll('.quote-remove[data-idx]').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const idx = parseInt(this.dataset.idx);
+                    removeQuote(idx);
+                });
+            });
+            area.querySelectorAll('.remove-image-attachment').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    pendingImageAttachment = null;
+                    renderQuotes();
+                });
+            });
+        });
+    }
+
+    // 把被引用消息的原文压平成单行纯文本，用于引用预览/存入引用块：
+    // 换行 -> 空格（避免多行内容把 "> " 引用块撑成多段/打断后续引用的格式），
+    // 并去掉常见 Markdown 修饰符（粗体、标题、代码块、内嵌的 ">"），
+    // 否则引用一条 AI 的长篇 Markdown 回复时，引用框里会原样出现标题、列表、换行，非常破碎。
+    function flattenForQuotePreview(text) {
+        return text
+            .replace(/\r?\n/g, ' ')
+            .replace(/[*_`#>]+/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    function addQuote(username, content, userId, msgId) {
+        let rawContent = content;
+        try {
+            rawContent = decodeURIComponent(content);
+        } catch (e) {
+            rawContent = content;
+        }
+        const trimmed = rawContent.trim();
+        const hasNestedQuote = trimmed.startsWith('>');
+        let displayContent;
+        if (hasNestedQuote) {
+            displayContent = '...';
+        } else {
+            displayContent = flattenForQuotePreview(rawContent);
+            if (displayContent.length > 60) {
+                displayContent = displayContent.substring(0, 60) + '...';
+            }
+        }
+        const isSelf = (userId === currentUserID);
+        quotes.push({
+            username: username,
+            content: rawContent,
+            displayContent: displayContent,
+            isSelf: isSelf,
+            hasNestedQuote: hasNestedQuote,
+            msgId: Number.isInteger(msgId) ? msgId : null
+        });
+        renderQuotes();
+        messageInput.focus();
+        const mobileInput = document.getElementById('messageInputMobile');
+        if (mobileInput) mobileInput.focus();
+    }
+
+    function removeQuote(idx) {
+        quotes.splice(idx, 1);
+        renderQuotes();
+    }
+
+    function clearQuotes() {
+        quotes = [];
+        pendingImageAttachment = null;
+        renderQuotes();
+    }
+
+    //  发送消息
+    async function sendMessage() {
+        if (isChatBanned) {
+            showInlineToast('当前时段禁止聊天');
+            return;
+        }
+        let content = messageInput.value.trim();
+        let quoteText = '';
+        if (quotes.length > 0) {
+            quoteText = quotes.map(q => `> **${q.username}**：${q.displayContent}`).join('\n') + '\n\n';
+        }
+        // 待发送的图片附件（来自"AI 识图"按钮）：拼进消息里，显示成和普通文件分享一样的链接
+        let imagePrefix = '';
+        const imageFileId = pendingImageAttachment ? pendingImageAttachment.fileId : null;
+        if (pendingImageAttachment) {
+            imagePrefix = `📷 <a href="${window.location.origin}/api/files/download/${pendingImageAttachment.fileId}">${pendingImageAttachment.filename}</a>\n`;
+        }
+        const fullContent = quoteText + imagePrefix + content;
+        if (!currentRoomId) return;
+        if (!fullContent.trim()) return;
+
+        // 引用消息的真实 ID：用于后端拉取完整原文作为 AI 参考上下文（而不是这里可能被截断成 "..." 的 displayContent）
+        const quotedMessageIds = quotes.map(q => q.msgId).filter(id => Number.isInteger(id));
+
+        messageInput.value = '';
+        autoResizeTextarea(messageInput);
+        const mobileInput = document.getElementById('messageInputMobile');
+        if (mobileInput) {
+            mobileInput.value = '';
+            autoResizeTextarea(mobileInput);
+        }
+        clearQuotes();
+        mentionSearch.classList.remove('active');
+        mentionActive = false;
+
+        try {
+            const result = await apiFetch('/api/messages', {
+                method: 'POST',
+                body: JSON.stringify({
+                    content: fullContent,
+                    reply_text: content, // 本次用户实际输入的新内容（不含引用块/图片链接），仅用于判断是否触发 @AI，避免引用里恰好带 "@AI xxx" 被误触发
+                    room_id: currentRoomId,
+                    quoted_message_ids: quotedMessageIds,
+                    image_file_id: imageFileId,
+                }),
+            });
+            lastMessagesSnapshot = null;
+            await loadMessages(currentRoomId, false);
+            if (result && result.ai_message_id) {
+                startAIStreamListener(result.ai_message_id);
+            }
+        } catch (e) {
+            showInlineToast('发送失败: ' + e.message);
+        }
+    }
+
+    // 移动端发送
+    async function sendMobileMessage() {
+        const mobileInput = document.getElementById('messageInputMobile');
+        if (!mobileInput) return;
+        messageInput.value = mobileInput.value;
+        await sendMessage();
+        mobileInput.value = '';
+        autoResizeTextarea(mobileInput);
+    }
+
+    // 纯文本发送（用于文件链接）
+    async function sendPlainMessage(content) {
+        if (!currentRoomId) return;
+        try {
+            await apiFetch('/api/messages', {
+                method: 'POST',
+                body: JSON.stringify({ content: content, room_id: currentRoomId }),
+            });
+            lastMessagesSnapshot = null;
+            await loadMessages(currentRoomId, false);
+        } catch (e) {
+            showInlineToast('发送文件消息失败: ' + e.message);
+        }
+    }
+
+    // ---- AI 识图：上传图片后作为"待发送附件"挂在输入框上方（跟引用同一个区域），
+    // 不再弹内联对话框问问题——弹窗会把光标拉回输入框，导致选中的文字选区丢失、
+    // 没法正常复制长文本中的一段。改成和"引用消息"完全一样的交互：图片附上之后，
+    // 直接在输入框（含移动端底栏切到输入状态时）里正常打字提问，跟发普通消息一样发送即可。
+    async function attachImageForAI(file) {
+        if (!currentRoomId) {
+            showInlineToast('请先选择一个聊天室');
+            return;
+        }
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('room_id', currentRoomId);
+        try {
+            const uploadResp = await fetch('/api/files/upload', { method: 'POST', body: formData });
+            if (!uploadResp.ok) {
+                const err = await uploadResp.json().catch(() => ({ error: '上传失败' }));
+                throw new Error(err.error || '上传失败');
+            }
+            const data = await uploadResp.json();
+            pendingImageAttachment = { fileId: data.file_id, filename: data.filename };
+            renderQuotes();
+            messageInput.focus();
+            const mobileInput = document.getElementById('messageInputMobile');
+            if (mobileInput) mobileInput.focus();
+        } catch (e) {
+            showInlineToast('图片上传失败: ' + e.message);
+        }
+    }
+
+    const aiVisionInput = document.getElementById('aiVisionInput');
+    if (aiVisionInput) {
+        aiVisionInput.addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                attachImageForAI(this.files[0]);
+            }
+            this.value = '';
+        });
+    }
+
+    // AI流式
+    async function transcribeVoiceMessage(msgId, btnEl) {
+        if (btnEl && btnEl.classList.contains('loading')) return; // 正在转文字中，避免重复点击
+        if (btnEl) btnEl.classList.add('loading');
+        try {
+            const result = await apiFetch(`/api/voice-message/${msgId}/transcribe`, { method: 'POST' });
+            await loadMessages(currentRoomId, false);
+            if (result && result.transcript_message_id) {
+                startAIStreamListener(result.transcript_message_id);
+            }
+        } catch (e) {
+            if (btnEl) btnEl.classList.remove('loading');
+            showInlineToast('语音转文字请求失败: ' + e.message);
+        }
+    }
+
+    async function startAIStreamListener(msgId) {
+        hasActiveStream = true;
+        activeStreamContents[msgId] = '';
+        try {
+            const response = await fetch(`/api/messages/stream/${msgId}`);
+            if (!response.ok || !response.body) {
+                throw new Error('AI 流式连接失败');
+            }
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+            let acc = '';
+            let done = false;
+            while (!done) {
+                const { value, done: doneReading } = await reader.read();
+                done = doneReading;
+                if (value) {
+                    acc += decoder.decode(value, { stream: true });
+                    activeStreamContents[msgId] = acc;
+                    const wasAtBottom = isScrolledToBottom();
+                    messages.forEach(m => { if (m.id === msgId) { m.content = acc; m.is_streaming = true; } });
+                    renderMessages();
+                    if (wasAtBottom) scrollToBottom();
+                }
+            }
+        } catch (e) {
+            console.error('AI 流式获取失败:', e);
+        } finally {
+            delete activeStreamContents[msgId];
+            hasActiveStream = false;
+            if (currentRoomId) {
+                await loadMessages(currentRoomId, false);
+            }
+        }
+    }
+
+    //  撤回/删除
+    async function recallMessage(msgId) {
+        if (isChatBanned) {
+            showInlineToast('当前时段禁止操作');
+            return;
+        }
+        const confirmed = await showConfirm('撤回消息', '确定要撤回这条消息吗？');
+        if (!confirmed) return;
+        try {
+            await apiFetch('/api/messages/recall', { method: 'POST', body: JSON.stringify({ message_id: msgId }) });
+            lastMessagesSnapshot = null;
+            await loadMessages(currentRoomId, false);
+        } catch (e) { showInlineToast('撤回失败: ' + e.message); }
+    }
+
+    async function executeDeleteMessage(msgId) {
+        if (isChatBanned) {
+            showInlineToast('当前时段禁止操作');
+            return;
+        }
+        try {
+            await apiFetch('/api/messages/teacher_delete', { method: 'POST', body: JSON.stringify({ message_id: msgId }) });
+            lastMessagesSnapshot = null;
+            await loadMessages(currentRoomId, false);
+        } catch (e) { showInlineToast('删除失败: ' + e.message); }
+        confirmingDeleteMsgId = null;
+        document.querySelectorAll('.delete-overlay.active').forEach(el => el.classList.remove('active'));
+    }
+
+    function cancelDeleteConfirm() {
+        confirmingDeleteMsgId = null;
+        document.querySelectorAll('.delete-overlay.active').forEach(el => el.classList.remove('active'));
+    }
+
+    //  房间管理
+    async function executeRestore(roomId) {
+        try {
+            await apiFetch(`/api/rooms/${roomId}/restore`, { method: 'POST' });
+            restoringRoomId = null;
+            isFirstRestoreRender = false;
+            await loadRooms();
+        } catch (e) {
+            showInlineToast('恢复失败: ' + e.message);
+            cancelRestore();
+        }
+    }
+
+    function showRoomForm(roomId = null) {
+        editingRoomId = roomId;
+        if (roomId !== null) {
+            const room = rooms.find(r => r.id === roomId);
+            if (!room) return;
+            newRoomName.value = room.name;
+            confirmBtnText.textContent = '保存';
+            createForm.style.display = 'flex';
+            newRoomName.focus();
+            newRoomName.select();
+        } else {
+            newRoomName.value = '';
+            confirmBtnText.textContent = '创建';
+            createForm.style.display = 'flex';
+            newRoomName.focus();
+        }
+    }
+
+    function hideRoomForm() {
+        createForm.style.display = 'none';
+        newRoomName.value = '';
+        editingRoomId = null;
+        confirmBtnText.textContent = '创建';
+    }
+
+    async function handleRoomSubmit() {
+        const name = newRoomName.value.trim();
+        if (!name) {
+            showInlineToast('请输入房间名称');
+            return;
+        }
+        try {
+            if (editingRoomId !== null) {
+                const roomIndex = rooms.findIndex(r => r.id === editingRoomId);
+                if (roomIndex !== -1) {
+                    rooms[roomIndex].name = name;
+                    renderRooms();
+                }
+                apiFetch(`/api/rooms/${editingRoomId}`, { method: 'PUT', body: JSON.stringify({ name }) })
+                    .catch(e => showInlineToast('重命名失败: ' + e.message));
+                hideRoomForm();
+            } else {
+                const result = await apiFetch('/api/rooms', { method: 'POST', body: JSON.stringify({ name }) });
+                const newRoom = {
+                    id: result.id,
+                    name: name,
+                    created_by: 0,
+                    created_at: new Date().toISOString(),
+                    is_deleted: false,
+                    hidden_count: 0
+                };
+                rooms.push(newRoom);
+                currentRoomId = newRoom.id;
+                saveLastRoom(newRoom.id);
+                renderRooms();
+                messages = [];
+                lastRenderedRoomId = currentRoomId;
+                lastMessagesSnapshot = null;
+                renderMessages();
+                hideRoomForm();
+                await loadMessages(newRoom.id, true);
+                loadRooms().catch(e => console.warn('后台刷新房间列表失败:', e));
+            }
+        } catch (e) {
+            showInlineToast((editingRoomId !== null ? '重命名失败: ' : '创建失败: ') + e.message);
+        }
+    }
+
+    //  房间删除确认
+    function setDeleting(roomId) {
+        if (deletingRoomId === roomId) {
+            cancelDelete();
+            return;
+        }
+        if (restoringRoomId !== null) cancelRestore();
+        deletingRoomId = roomId;
+        isFirstDeleteRender = true;
+        renderRooms();
+        requestAnimationFrame(() => {
+            const el = document.querySelector(`.room-item[data-room-id="${roomId}"] .delete-confirm`);
+            if (el) {
+                el.classList.add('active');
+            }
+            isFirstDeleteRender = false;
+        });
+    }
+
+    function cancelDelete() {
+        if (deletingRoomId === null) return;
+        const el = document.querySelector(`.room-item[data-room-id="${deletingRoomId}"] .delete-confirm`);
+        if (el) {
+            el.classList.remove('active');
+        }
+        setTimeout(() => {
+            deletingRoomId = null;
+            isFirstDeleteRender = false;
+            renderRooms();
+        }, 350);
+    }
+
+    async function confirmDelete(roomId) {
+        try {
+            const index = rooms.findIndex(r => r.id === roomId);
+            if (index !== -1) {
+                rooms.splice(index, 1);
+            }
+            if (currentRoomId === roomId) {
+                currentRoomId = null;
+                clearLastRoom();
+            }
+            deletingRoomId = null;
+            isFirstDeleteRender = false;
+            renderRooms();
+            if (rooms.length === 0) {
+                messages = [];
+                renderMessages();
+            } else if (currentRoomId === null && rooms.length > 0) {
+                currentRoomId = rooms[0].id;
+                saveLastRoom(currentRoomId);
+                renderRooms();
+                lastMessagesSnapshot = null;
+                loadMessages(currentRoomId);
+            }
+            await apiFetch(`/api/rooms/${roomId}`, { method: 'DELETE' });
+        } catch (e) {
+            showInlineToast('删除失败: ' + e.message);
+            loadRooms();
+        }
+    }
+
+    //  房间恢复确认
+    function setRestoring(roomId) {
+        if (restoringRoomId === roomId) {
+            cancelRestore();
+            return;
+        }
+        if (deletingRoomId !== null) cancelDelete();
+        restoringRoomId = roomId;
+        isFirstRestoreRender = true;
+        renderRooms();
+        requestAnimationFrame(() => {
+            const el = document.querySelector(`.room-item[data-room-id="${roomId}"] .restore-confirm`);
+            if (el) {
+                el.classList.add('active');
+            }
+            isFirstRestoreRender = false;
+        });
+    }
+
+    function cancelRestore() {
+        if (restoringRoomId === null) return;
+        const el = document.querySelector(`.room-item[data-room-id="${restoringRoomId}"] .restore-confirm`);
+        if (el) {
+            el.classList.remove('active');
+        }
+        setTimeout(() => {
+            restoringRoomId = null;
+            isFirstRestoreRender = false;
+            renderRooms();
+        }, 350);
+    }
+
+    async function confirmRestore(roomId) {
+        try {
+            const room = rooms.find(r => r.id === roomId);
+            if (room) {
+                room.hidden_count = 0;
+            }
+            restoringRoomId = null;
+            isFirstRestoreRender = false;
+            renderRooms();
+            await apiFetch(`/api/rooms/${roomId}/restore`, { method: 'POST' });
+            await loadRooms();
+        } catch (e) {
+            showInlineToast('恢复失败: ' + e.message);
+            cancelRestore();
+        }
+    }
+
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.delete-overlay')) return;
+        if (e.target.closest('.delete-btn')) return;
+        if (confirmingDeleteMsgId !== null) {
+            cancelDeleteConfirm();
+        }
+        if (deletingRoomId !== null) {
+            if (!e.target.closest('.delete-confirm')) {
+                cancelDelete();
+            }
+        }
+        if (restoringRoomId !== null) {
+            if (!e.target.closest('.restore-confirm')) {
+                cancelRestore();
+            }
+        }
+    });
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            if (confirmingDeleteMsgId !== null) cancelDeleteConfirm();
+            if (deletingRoomId !== null) cancelDelete();
+            if (restoringRoomId !== null) cancelRestore();
+        }
+    });
+
+    //  渲染：房间列表
+    function renderRooms() {
+        if (!rooms || !Array.isArray(rooms)) rooms = [];
+        if (currentRoomId !== null && !rooms.find(r => r.id === currentRoomId)) {
+            currentRoomId = null;
+        }
+        if (rooms.length === 0) {
+            roomsContainer.innerHTML = '';
+            return;
+        }
+        roomsContainer.innerHTML = rooms.map(room => {
+            const isDeleting = (deletingRoomId === room.id);
+            const isRestoring = (restoringRoomId === room.id);
+            let hiddenBadge = '';
+            const isTeacher = role === 'teacher';
+            let restoreButton = '';
+            if (isTeacher && room.hidden_count > 0) {
+                hiddenBadge = `<span class="hidden-badge" title="有学生隐藏了此房间">[${room.hidden_count}人隐藏]</span>`;
+                restoreButton = `<button class="restore-btn" data-room-id="${room.id}" title="恢复此房间（所有学生将重新可见）"><i class="fas fa-undo-alt"></i></button>`;
+            }
+            const activeClass = room.id === currentRoomId ? 'active' : '';
+            const deleteConfirmClass = isDeleting ? (isFirstDeleteRender ? 'delete-confirm' : 'delete-confirm active') : 'delete-confirm';
+            const restoreConfirmClass = isRestoring ? (isFirstRestoreRender ? 'restore-confirm' : 'restore-confirm active') : 'restore-confirm';
+            const mentionBadge = (room.mention_count > 0) ? `<span style="background:#ff4444;color:#fff;border-radius:50%;padding:0 6px;font-size:11px;margin-left:4px;">${room.mention_count}</span>` : '';
+
+            return `
+                <div class="room-item ${activeClass}" data-room-id="${room.id}">
+                    ${isDeleting ? `
+                        <div class="${deleteConfirmClass}" data-room-id="${room.id}">
+                            <i class="fas fa-exclamation-triangle"></i> 确认删除吗
+                        </div>
+                    ` : ''}
+                    ${isRestoring ? `
+                        <div class="${restoreConfirmClass}" data-room-id="${room.id}">
+                            <i class="fas fa-check-circle"></i> 确认恢复吗
+                        </div>
+                    ` : ''}
+                    <span class="room-name">${escapeHtml(room.name)} ${hiddenBadge} ${mentionBadge}</span>
+                    <span class="room-actions">
+                        ${restoreButton}
+                        <button class="rename-btn" data-room-id="${room.id}" title="重命名"><i class="fas fa-pen"></i></button>
+                        <button class="delete-btn" data-room-id="${room.id}" title="删除"><i class="fas fa-trash"></i></button>
+                    </span>
+                </div>
+            `;
+        }).join('');
+
+        document.querySelectorAll('.room-item').forEach(el => {
+            el.addEventListener('click', function(e) {
+                if (window.innerWidth <= 768) {
+                    roomList.classList.remove('open');
+                }
+                if (e.target.closest('.delete-confirm') || e.target.closest('.restore-confirm')) return;
+                const id = parseInt(this.dataset.roomId);
+                if (deletingRoomId !== null) cancelDelete();
+                if (restoringRoomId !== null) cancelRestore();
+                if (id !== currentRoomId) {
+                    if (currentRoomId) saveScrollPosition();
+                    currentRoomId = id;
+                    saveLastRoom(id);
+                    renderRooms();
+                    lastMessagesSnapshot = null;
+                    loadMessages(id, true);
+                }
+            });
+        });
+        document.querySelectorAll('.rename-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const roomId = parseInt(this.dataset.roomId);
+                const room = rooms.find(r => r.id === roomId);
+                if (!room) return;
+                hideRoomForm();
+                showRoomForm(roomId);
+                if (deletingRoomId !== null) cancelDelete();
+                if (restoringRoomId !== null) cancelRestore();
+            });
+        });
+        document.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const roomId = parseInt(this.dataset.roomId);
+                setDeleting(roomId);
+            });
+        });
+        document.querySelectorAll('.delete-confirm').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const roomId = parseInt(this.dataset.roomId);
+                confirmDelete(roomId);
+            });
+        });
+        document.querySelectorAll('.restore-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const roomId = parseInt(this.dataset.roomId);
+                setRestoring(roomId);
+            });
+        });
+        document.querySelectorAll('.restore-confirm').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const roomId = parseInt(this.dataset.roomId);
+                confirmRestore(roomId);
+            });
+        });
+    }
+
+    //  渲染：消息列表
+    function buildVoiceWaveBarsHtml(duration, seed) {
+        const count = Math.min(26, Math.max(5, Math.round(5 + duration * 1.1)));
+        let html = '';
+        for (let i = 0; i < count; i++) {
+            const n = Math.sin((seed * 12.9898) + (i * 78.233)) * 43758.5453;
+            const frac = n - Math.floor(n); // 0~1 之间的确定性伪随机
+            const h = 5 + Math.round(frac * 13); // 5~18px
+            html += `<span style="height:${h}px;"></span>`;
+        }
+        return html;
+    }
+
+    function renderMessages() {
+        if (currentRoomId !== lastRenderedRoomId) {
+            lastMessagesSnapshot = null;
+            lastRenderedRoomId = currentRoomId;
+        }
+
+        const snapshot = messages.map(m =>
+            `${m.id}|${m.content}|${m.is_recalled}|${m.is_streaming}|${m.user_id}|${m.msg_type || ''}|${m.call_status || ''}`
+        ).join('||');
+        if (snapshot === lastMessagesSnapshot && !hasActiveStream) {
+            return;
+        }
+
+        // 用户正在消息区里选中一段文字（多半是想复制）时，这次先跳过整体重渲染——
+        // 整个替换 innerHTML 会把选区所在的 DOM 节点连根拔掉，选区跟着丢失，
+        // 体验上就像"光标突然跑回了输入框"。内容不会丢，等选区结束后下一轮轮询自然会补上。
+        // 流式输出（hasActiveStream）时仍然照常更新，避免长时间卡在旧内容上。
+        const activeSelection = window.getSelection();
+        if (!hasActiveStream && activeSelection && activeSelection.toString().length > 0 &&
+            messagesContainer.contains(activeSelection.anchorNode)) {
+            return;
+        }
+
+        lastMessagesSnapshot = snapshot;
+
+        if (!messages || !Array.isArray(messages)) messages = [];
+        if (!currentRoomId) {
+            messagesContainer.innerHTML = `<div class="empty-room">请选择或创建一个聊天室</div>`;
+            messageInput.disabled = true;
+            sendButton.disabled = true;
+            const mobileInput = document.getElementById('messageInputMobile');
+            const mobileSend = document.getElementById('sendButtonMobile');
+            if (mobileInput) mobileInput.disabled = true;
+            if (mobileSend) mobileSend.disabled = true;
+            return;
+        }
+        if (messages.length === 0) {
+            messagesContainer.innerHTML = `<div class="empty-room">暂无消息，快来聊天吧！</div>`;
+            return;
+        }
+
+        // 同一条语音消息如果被多次点了"文"，取数组里最后出现的那条（也就是最新一次请求）。
+        const transcriptBySourceId = {};
+        const transcriptMsgIds = new Set();
+        messages.forEach(m => {
+            if (m.msg_type === 'voice_transcript') {
+                transcriptMsgIds.add(m.id);
+                if (m.reply_to_id) transcriptBySourceId[m.reply_to_id] = m;
+            }
+        });
+
+        let html = '';
+        messages.forEach(msg => {
+            if (transcriptMsgIds.has(msg.id)) return; // 已经挂在对应语音气泡下面显示了，这里跳过
+            if (msg.msg_type === 'call_invite') {
+                const isSelfCall = (msg.user_id === currentUserID) || msg.is_self;
+                const ongoing = msg.call_status === 'ongoing';
+                const rowClassCall = isSelfCall ? 'message-row self' : 'message-row other';
+                const avatarCall = msg.avatar
+                    ? `<img src="${msg.avatar}" class="message-avatar" style="width:36px; height:36px; border-radius:50%; object-fit:cover;" alt="avatar">`
+                    : avatarHTML(msg.username || '未知用户');
+                const statusHtml = ongoing
+                    ? `<span class="call-status ongoing"><span class="pulse-dot"></span>通话中，点击加入</span>`
+                    : `<span class="call-status ended"><i class="fas fa-phone-slash"></i> 通话已结束</span>`;
+                html += `
+                    <div class="${rowClassCall}" data-msg-id="${msg.id}">
+                        ${avatarCall}
+                        <div class="message-col">
+                            <div class="message" style="background:transparent; box-shadow:none; padding:0; border:none;">
+                                <div class="meta">
+                                    <span>${escapeHtml(msg.username || '未知用户')}</span>
+                                    <span>${formatTime(msg.created_at)}</span>
+                                </div>
+                                <div class="call-invite-bubble ${ongoing ? '' : 'ended'}" data-room-id="${currentRoomId}" data-ongoing="${ongoing}">
+                                    <i class="fas fa-phone-volume call-icon"></i>
+                                    <div class="call-info">
+                                        <span class="call-title">语音通话</span>
+                                        ${statusHtml}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+            if (msg.msg_type === 'voice_message') {
+                const isSelfVM = (msg.user_id === currentUserID) || msg.is_self;
+                const rowClassVM = isSelfVM ? 'message-row self' : 'message-row other';
+                const avatarVM = msg.avatar
+                    ? `<img src="${msg.avatar}" class="message-avatar" style="width:36px; height:36px; border-radius:50%; object-fit:cover;" alt="avatar">`
+                    : avatarHTML(msg.username || '未知用户');
+                let vmPath = '', vmDuration = 0;
+                try {
+                    const parsed = JSON.parse(msg.content);
+                    vmPath = parsed.path || '';
+                    vmDuration = parseInt(parsed.duration, 10) || 0;
+                } catch (e) { /* 忽略解析失败的语音消息 */ }
+                const barsHtml = buildVoiceWaveBarsHtml(vmDuration, msg.id);
+
+                // 在 renderMessages 函数中，处理语音消息的循环内
+                const transcript = transcriptBySourceId[msg.id];
+                let transcribeBtnHtml = `<button class="voice-transcribe-trigger" data-msg-id="${msg.id}" title="转文字">文</button>`;
+                let transcriptBlockHtml = '';
+                if (transcript) {
+                    const isErr = !transcript.is_streaming && /^语音识别失败/.test(transcript.content || '');
+                    const tText = transcript.content || '';
+                    const label = transcript.is_streaming
+                        ? '<i class="fas fa-microphone-alt"></i> AI 正在转文字...'
+                        : (isErr ? '<i class="fas fa-triangle-exclamation"></i> 转文字失败' : '<i class="fas fa-microphone-alt"></i> 转文字结果');
+                    transcribeBtnHtml = `<button class="voice-transcribe-trigger${transcript.is_streaming ? ' loading' : ' active'}" data-msg-id="${msg.id}" title="重新转文字">${transcript.is_streaming ? '<i class="fas fa-spinner"></i>' : '文'}</button>`;
+                    transcriptBlockHtml = `
+    <div class="transcript-wrapper">
+        <div class="voice-transcript-block${isErr ? ' error' : ''}" data-msg-id="${msg.id}" style="flex:1; min-width:0;">
+            <div class="voice-transcript-label" style="display:flex; align-items:center; gap:4px;">
+                ${label}
+            </div>
+            <div class="voice-transcript-text">${escapeHtml(tText)}${transcript.is_streaming ? '<span style="color:#4ecdc4;">...</span>' : ''}</div>
+        </div>
+        <button class="transcript-copy-trigger" data-msg-id="${msg.id}" title="复制转文字结果">
+            <i class="fas fa-copy"></i>
+        </button>
+    </div>
+`;
+                }
+
+                html += `
+                    <div class="${rowClassVM}" data-msg-id="${msg.id}">
+                        ${avatarVM}
+                        <div class="message-col">
+                            <div class="message" style="background:transparent; box-shadow:none; padding:0; border:none; overflow:visible;">
+                                <div class="meta">
+                                    <span>${escapeHtml(msg.username || '未知用户')}</span>
+                                    <span>${formatTime(msg.created_at)}</span>
+                                </div>
+                                <div class="voice-msg-row">
+                                    <div class="voice-message-bubble" data-audio-src="${escapeHtml(vmPath)}" data-duration="${vmDuration}">
+                                        <i class="fas fa-play voice-msg-icon"></i>
+                                        <div class="voice-msg-bars">${barsHtml}</div>
+                                        <span class="voice-msg-duration">${vmDuration}″</span>
+                                    </div>
+                                    ${transcribeBtnHtml}
+                                </div>
+                                ${transcriptBlockHtml}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+            const isSelf = (msg.user_id === currentUserID && msg.username !== 'AI 助手') || msg.is_self;
+            const canRecall = msg.can_recall;
+            const isRecalled = msg.is_recalled;
+            const isTeacher = role === 'teacher';
+            const isAI = msg.is_ai || false;
+            const isStreaming = msg.is_streaming || false;
+            let recallBadge = isRecalled ? '<span class="recall-badge">[已撤回]</span>' : '';
+            let content = isRecalled ? '此消息已被撤回' : msg.content;
+            let aiBadge = isAI ? '<span class="ai-reply-badge"><i class="fas fa-robot"></i> AI</span>' : '';
+            let streamingIndicator = isStreaming ? ' <span style="color:#6c63ff;">...</span>' : '';
+            const username = msg.username || '未知用户';
+            const avatar = msg.avatar
+                ? `<img src="${msg.avatar}" class="message-avatar" style="width:36px; height:36px; border-radius:50%; object-fit:cover;" alt="avatar">`
+                : avatarHTML(username);
+            const rowClass = isSelf ? 'message-row self' : 'message-row other';
+
+            let actionButtons = '';
+            if (!isRecalled) {
+                const encodedContent = encodeURIComponent(msg.content);
+                actionButtons += `<button class="quote-btn" data-msg-id="${msg.id}" data-username="${escapeHtml(username)}" data-content="${encodedContent}" data-user-id="${msg.user_id}"><i class="fas fa-reply"></i> 回复</button>`;
+            }
+            if (isSelf && !isRecalled && !isTeacher && canRecall) {
+                actionButtons += `<button class="recall-btn" data-msg-id="${msg.id}"><i class="fas fa-undo-alt"></i> 撤回</button>`;
+            }
+            if (isTeacher && !isRecalled) {
+                const modClass = isSelf ? '' : ' teacher-mod';
+                const modTitle = isSelf ? '删除' : '教师管理：删除该学生消息';
+                const modIcon = isSelf ? 'fa-trash' : 'fa-user-shield';
+                actionButtons += `<button class="delete-btn${modClass}" data-msg-id="${msg.id}" title="${modTitle}"><i class="fas ${modIcon}"></i> 删除</button>`;
+            }
+
+            let overlayHtml = '';
+            if (isTeacher && !isRecalled) {
+                const isConfirming = (confirmingDeleteMsgId === msg.id);
+                const confirmText = isSelf ? '确认删除？' : '确认删除该学生的消息？';
+                overlayHtml = `
+                    <div class="delete-overlay ${isConfirming ? 'active' : ''}" data-msg-id="${msg.id}">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span class="text">${confirmText}</span>
+                    </div>
+                `;
+            }
+
+            const reactionTriggerHtml = isRecalled ? '' :
+                `<button class="reaction-trigger" data-msg-id="${msg.id}" title="添加表情"><i class="fas fa-face-smile"></i></button>`;
+            const copyTriggerHtml = isRecalled ? '' :
+                `<button class="msg-copy-trigger" data-msg-id="${msg.id}" title="复制"><i class="fas fa-copy"></i></button>`;
+            const sideActionsHtml = (reactionTriggerHtml || copyTriggerHtml) ?
+                `<div class="message-side-actions">${reactionTriggerHtml}${copyTriggerHtml}</div>` : '';
+
+            html += `
+                <div class="${rowClass}" data-msg-id="${msg.id}">
+                    ${avatar}
+                    <div class="message-col">
+                        <div class="message">
+                            ${overlayHtml}
+                            <div class="meta">
+                                <span>${escapeHtml(username)} ${aiBadge}</span>
+                                <span>${formatTime(msg.created_at)} ${recallBadge}</span>
+                            </div>
+                            <div class="content markdown-body">${isRecalled ? escapeHtml(content) : renderMarkdown(content)}${streamingIndicator}</div>
+                            ${actionButtons ? `<div class="msg-actions">${actionButtons}</div>` : ''}
+                        </div>
+                        ${renderReactionPills(msg)}
+                    </div>
+                    ${sideActionsHtml}
+                </div>
+            `;
+        });
+        markOwnLayoutChange();
+        messagesContainer.innerHTML = html;
+        renderMathIn(messagesContainer);
+
+        document.querySelectorAll('.call-invite-bubble').forEach(bubble => {
+            bubble.addEventListener('click', function() {
+                if (this.dataset.ongoing !== 'true') return;
+                const roomId = parseInt(this.dataset.roomId);
+                if (roomId) openVoiceCall(roomId, { skipInvite: true });
+            });
+        });
+        document.querySelectorAll('.voice-message-bubble').forEach(bubble => {
+            bubble.addEventListener('click', function() {
+                playVoiceMessage(this);
+            });
+        });
+        document.querySelectorAll('.voice-transcribe-trigger').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation(); // 避免顺带触发旁边气泡的播放点击
+                const msgId = parseInt(this.dataset.msgId);
+                if (msgId) transcribeVoiceMessage(msgId, this);
+            });
+        });
+        // 转文字结果复制按钮
+        document.querySelectorAll('.transcript-copy-trigger').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const wrapper = this.closest('.transcript-wrapper');
+                if (!wrapper) return;
+                const block = wrapper.querySelector('.voice-transcript-block');
+                if (!block) return;
+                const textEl = block.querySelector('.voice-transcript-text');
+                if (!textEl) return;
+                let text = textEl.textContent.trim();
+                if (text.endsWith('...')) text = text.slice(0, -3).trim();
+                if (!text) {
+                    showInlineToast('无可复制的内容');
+                    return;
+                }
+                copyTextToClipboard(text).then(() => {
+                    showInlineToast('已复制转文字结果');
+                }).catch(() => {
+                    showInlineToast('复制失败，请手动复制');
+                });
+            });
+        });
+        document.querySelectorAll('.quote-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const username = this.dataset.username;
+                const content = this.dataset.content;
+                const userId = parseInt(this.dataset.userId);
+                const msgId = parseInt(this.dataset.msgId);
+                addQuote(username, content, userId, msgId);
+            });
+        });
+        document.querySelectorAll('.recall-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const msgId = parseInt(this.dataset.msgId);
+                recallMessage(msgId);
+            });
+        });
+        document.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const msgId = parseInt(this.dataset.msgId);
+                cancelDeleteConfirm();
+                confirmingDeleteMsgId = msgId;
+                const overlay = document.querySelector(`.delete-overlay[data-msg-id="${msgId}"]`);
+                if (overlay) {
+                    overlay.classList.add('active');
+                }
+            });
+        });
+        document.querySelectorAll('.delete-overlay').forEach(overlay => {
+            overlay.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const msgId = parseInt(this.dataset.msgId);
+                if (msgId === confirmingDeleteMsgId) {
+                    executeDeleteMessage(msgId);
+                }
+            });
+        });
+        if (confirmingDeleteMsgId !== null) {
+            const activeOverlay = document.querySelector(`.delete-overlay.active`);
+            if (!activeOverlay || parseInt(activeOverlay.dataset.msgId) !== confirmingDeleteMsgId) {
+                cancelDeleteConfirm();
+            }
+        }
+    }
+
+    //  提及系统
+
+    function positionMentionSearchDesktop() {
+        if (window.innerWidth <= 768) {
+            mentionSearch.style.removeProperty('bottom');
+            return;
+        }
+        const inputBox = document.getElementById('chatInputDesktop');
+        const wrap = inputBox ? inputBox.closest('.chat-input-wrap') : null;
+        if (!inputBox || !wrap) return;
+        const inputRect = inputBox.getBoundingClientRect();
+        const wrapRect = wrap.getBoundingClientRect();
+        const bottomOffset = Math.max(0, wrapRect.bottom - inputRect.top) + 8;
+        mentionSearch.style.setProperty('bottom', bottomOffset + 'px', 'important');
+    }
+    window.addEventListener('resize', function() {
+        if (mentionSearch.classList.contains('active')) positionMentionSearchDesktop();
+    });
+
+    function updateMentionSearch(input) {
+        const text = input.value;
+        const cursorPos = input.selectionStart;
+        const atIndex = text.lastIndexOf('@', cursorPos);
+        if (atIndex === -1) {
+            mentionSearch.style.display = 'none';
+            mentionSearch.classList.remove('active');
+            mentionActive = false;
+            return;
+        }
+        const rawQuery = text.substring(atIndex + 1, cursorPos);
+        if (/\s/.test(rawQuery)) {
+            mentionSearch.style.display = 'none';
+            mentionSearch.classList.remove('active');
+            mentionActive = false;
+            return;
+        }
+        const query = rawQuery.trim().toLowerCase();
+        mentionUsers = users.filter(u => {
+            const match = u.username.toLowerCase().includes(query) ||
+                (u.full_name && u.full_name.toLowerCase().includes(query));
+            return match;
+        });
+
+        let html = '';
+        if (mentionUsers.length === 0) {
+            html = `<div class="empty-hint">未找到用户</div>`;
+        } else {
+            html = mentionUsers.map((u, idx) => {
+                const avatarHtml = u.avatar
+                    ? `<img src="${u.avatar}" style="width:28px; height:28px; border-radius:50%; object-fit:cover;">`
+                    : u.username.charAt(0).toUpperCase();
+                return `
+                <div class="mention-item" data-username="${u.username}" data-fullname="${u.full_name || ''}">
+                    <div class="avatar">${avatarHtml}</div>
+                    <span class="username">${escapeHtml(u.username)}</span>
+                    <span class="fullname">${escapeHtml(u.full_name || '')}</span>
+                </div>
+            `;
+            }).join('');
+        }
+        mentionSearch.innerHTML = html;
+        positionMentionSearchDesktop();
+        mentionSearch.style.display = 'block';
+        mentionSearch.classList.add('active');
+        mentionActive = true;
+        mentionIndex = -1;
+
+        document.querySelectorAll('.mention-item').forEach(el => {
+            el.addEventListener('click', function() {
+                const username = this.dataset.username;
+                insertMention(input, username);
+            });
+        });
+    }
+
+    function insertMention(input, username) {
+        const text = input.value;
+        const cursorPos = input.selectionStart;
+        const atIndex = text.lastIndexOf('@', cursorPos);
+        if (atIndex === -1) return;
+        const before = text.substring(0, atIndex);
+        const after = text.substring(cursorPos);
+        const mentionText = '@' + username + ' ';
+        const newText = before + mentionText + after;
+        input.value = newText;
+        const newPos = before.length + mentionText.length;
+        input.selectionStart = input.selectionEnd = newPos;
+        if (input === messageInput) {
+            const mobileInput = document.getElementById('messageInputMobile');
+            if (mobileInput) {
+                mobileInput.value = newText;
+                autoResizeTextarea(mobileInput);
+            }
+        } else if (input.id === 'messageInputMobile') {
+            messageInput.value = newText;
+            autoResizeTextarea(messageInput);
+        }
+        mentionSearch.style.display = 'none';
+        mentionSearch.classList.remove('active');
+        mentionActive = false;
+        input.focus();
+    }
+
+    function autoResizeTextarea(el) {
+        if (!el) return;
+        el.style.height = 'auto';
+        let maxHeight = parseInt(window.getComputedStyle(el).maxHeight) || 120;
+        let newHeight = Math.min(el.scrollHeight, maxHeight);
+        el.style.height = newHeight + 'px';
+        const lineHeight = parseFloat(window.getComputedStyle(el).lineHeight) || 20;
+        const rows = Math.floor(el.scrollHeight / lineHeight);
+        if (rows > 1) {
+            el.classList.add('scrollable');
+        } else {
+            el.classList.remove('scrollable');
+        }
+    }
+
+    function bindMentionInput(inputEl) {
+        if (!inputEl) return;
+        if (inputEl._bindMentionInputDone) return;
+        inputEl._bindMentionInputDone = true;
+
+        inputEl.addEventListener('input', function(e) {
+            updateMentionSearch(this);
+            autoResizeTextarea(this);
+        });
+
+        inputEl.addEventListener('keydown', function(e) {
+            if (mentionActive) {
+                const items = document.querySelectorAll('.mention-item');
+                if (items.length === 0) {
+                    if (e.key === 'Enter' || e.key === 'Escape') {
+                        mentionSearch.style.display = 'none';
+                        mentionSearch.classList.remove('active');
+                        mentionActive = false;
+                        mentionIndex = -1;
+                        e.preventDefault();
+                    }
+                    return;
+                }
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    let idx = mentionIndex === -1 ? 0 : mentionIndex;
+                    if (idx >= 0 && idx < items.length) {
+                        const el = items[idx];
+                        insertMention(this, el.dataset.username);
+                        mentionIndex = -1;
+                    }
+                    return;
+                }
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (e.key === 'ArrowDown') {
+                        mentionIndex = (mentionIndex + 1) % items.length;
+                    } else {
+                        mentionIndex = (mentionIndex - 1 + items.length) % items.length;
+                    }
+                    items.forEach((el, idx) => {
+                        el.style.background = idx === mentionIndex ? '#3a3a3a' : '';
+                    });
+                    return;
+                }
+                if (e.key === 'Escape') {
+                    mentionSearch.style.display = 'none';
+                    mentionSearch.classList.remove('active');
+                    mentionActive = false;
+                    mentionIndex = -1;
+                    return;
+                }
+            }
+
+            if (e.key === 'Enter' && !e.shiftKey) {
+                if (this.id === 'messageInput') {
+                    e.preventDefault();
+                    sendMessage();
+                    return;
+                } else if (this.id === 'messageInputMobile') {
+                    e.preventDefault();
+                    sendMobileMessage();
+                    return;
+                }
+            }
+        });
+
+        inputEl.addEventListener('focus', function() {
+            autoResizeTextarea(this);
+            if (this.id === 'messageInputMobile') {
+                this.setAttribute('enterkeyhint', 'enter');
+            }
+        });
+    }
+
+    bindMentionInput(messageInput);
+    const mobileInput = document.getElementById('messageInputMobile');
+    if (mobileInput) {
+        bindMentionInput(mobileInput);
+    }
+
+    document.addEventListener('click', function(e) {
+        if (!mentionSearch.contains(e.target) && e.target !== messageInput && e.target !== mobileInput) {
+            mentionSearch.style.display = 'none';
+            mentionSearch.classList.remove('active');
+            mentionActive = false;
+            mentionIndex = -1;
+        }
+    });
+
+    //  移动端同步
+    if (mobileInput) {
+        mobileInput.addEventListener('input', function() {
+            messageInput.value = this.value;
+            autoResizeTextarea(messageInput);
+        });
+        messageInput.addEventListener('input', function() {
+            if (mobileInput) {
+                mobileInput.value = this.value;
+                autoResizeTextarea(mobileInput);
+            }
+        });
+    }
+
+    //  文件上传
+    // 桌面端文件按钮
+    if (fileBtn) {
+        fileBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (!currentRoomId) {
+                showInlineToast('请先选择一个聊天室');
+                return;
+            }
+            fileInput.click();
+        });
+    }
+
+    // 移动端文件按钮（由 mobile_nav 提供）
+    const mobileFileBtn = document.getElementById('mobileFileBtn');
+    if (mobileFileBtn) {
+        mobileFileBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (!currentRoomId) {
+                showInlineToast('请先选择一个聊天室');
+                return;
+            }
+            fileInput.click();
+        });
+    }
+
+    fileInput.addEventListener('change', function() {
+        if (this.files.length > 0) {
+            uploadFiles(this.files);
+        }
+        this.value = '';
+    });
+
+    // 文件大小格式化
+    function formatFileSize(bytes) {
+        if (!bytes || bytes === 0 || isNaN(bytes)) return '0 B';
+        const units = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+        return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + units[i];
+    }
+
+    // ★ 最终版本：图标左对齐（📎 和 💾 分别位于行首）
+    async function uploadFiles(files) {
+        if (!currentRoomId) {
+            showInlineToast('请先选择一个聊天室');
+            return;
+        }
+        const formData = new FormData();
+        for (let f of files) {
+            formData.append('file', f);
+        }
+        formData.append('room_id', currentRoomId);
+        try {
+            const resp = await fetch('/api/files/upload', {
+                method: 'POST',
+                body: formData,
+            });
+            if (!resp.ok) {
+                const err = await resp.json();
+                throw new Error(err.error || '上传失败');
+            }
+            const data = await resp.json();
+            const fileId = data.file_id;
+            const filename = data.filename;
+            const fileSize = data.filesize || 0;
+            const sizeStr = formatFileSize(fileSize);
+            // 两行，无缩进，图标自然对齐
+            const messageContent = `📎 <a href="${window.location.origin}/api/files/download/${fileId}">${filename}</a>\n<span style="color:#b0a8ff;">💾 ${sizeStr}</span>`;
+            await sendPlainMessage(messageContent);
+            showInlineToast(`文件 "${filename}" 上传成功`);
+        } catch (e) {
+            showInlineToast('上传失败: ' + e.message);
+        }
+    }
+
+    // ============================================================
+    //  按钮事件
+    // ============================================================
+    showCreateBtn.addEventListener('click', () => {
+        hideRoomForm();
+        showRoomForm();
+        if (deletingRoomId !== null) cancelDelete();
+        if (restoringRoomId !== null) cancelRestore();
+    });
+    cancelCreateBtn.addEventListener('click', hideRoomForm);
+    confirmCreateBtn.addEventListener('click', handleRoomSubmit);
+    newRoomName.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleRoomSubmit();
+        }
+    });
+    sendButton.addEventListener('click', sendMessage);
+
+    // 移动端发送按钮
+    const mobileSendBtn = document.getElementById('sendButtonMobile');
+    if (mobileSendBtn) {
+        mobileSendBtn.addEventListener('click', sendMobileMessage);
+    }
+
+    // ============================================================
+    //  轮询
+    // ============================================================
+    function startPolling() {
+        if (pollInterval) clearInterval(pollInterval);
+        pollInterval = setInterval(() => {
+            if (currentRoomId) {
+                loadMessages(currentRoomId, false);
+            }
+            loadRooms();
+            checkChatBan();
+            refreshGlobalPendingMentions();
+        }, 3000);
+    }
+
+    window.addEventListener('beforeunload', () => {
+        if (currentRoomId) {
+            saveScrollPosition();
+            saveLastRoom(currentRoomId);
+        }
+        if (pollInterval) clearInterval(pollInterval);
+    });
+
+    //  初始化
+    async function init() {
+        await loadChatTimeRules();
+        refreshGlobalPendingMentions();
+        await loadUsers();
+        await loadRooms();
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const jumpRoomId = parseInt(urlParams.get('jump_room'));
+        const jumpMsgId = parseInt(urlParams.get('jump_msg'));
+        const hasValidJumpTarget = !isNaN(jumpRoomId) && rooms.some(r => r.id === jumpRoomId);
+
+        if (hasValidJumpTarget) {
+            currentRoomId = jumpRoomId;
+            saveLastRoom(currentRoomId);
+            await loadMessages(currentRoomId, false);
+            renderRooms();
+            if (!isNaN(jumpMsgId)) {
+                setTimeout(() => scrollToMessage(jumpMsgId), 150);
+            }
+            history.replaceState(null, '', window.location.pathname);
+        } else if (rooms.length > 0 && !currentRoomId) {
+            const lastRoomId = getLastRoom();
+            const stillExists = lastRoomId !== null && rooms.some(r => r.id === lastRoomId);
+            currentRoomId = stillExists ? lastRoomId : rooms[0].id;
+            saveLastRoom(currentRoomId);
+            await loadMessages(currentRoomId, true);
+            renderRooms();
+        }
+        startPolling();
+    }
+
+    function initRoomListToggle() {
+        if (!roomToggleBtn || !roomList) return;
+        roomToggleBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            roomList.classList.toggle('open');
+        });
+        if (closeRoomListBtn) {
+            closeRoomListBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                roomList.classList.remove('open');
+            });
+        }
+        document.addEventListener('click', function(e) {
+            if (window.innerWidth <= 768 && roomList.classList.contains('open')) {
+                if (!roomList.contains(e.target) && e.target !== roomToggleBtn) {
+                    roomList.classList.remove('open');
+                }
+            }
+        });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && roomList.classList.contains('open')) {
+                roomList.classList.remove('open');
+            }
+        });
+    }
+    initRoomListToggle();
+    init();
+
+    //  更多面板（桌面 + 移动端）
+    (function initMorePanels() {
+        function wirePanel(btn, panel) {
+            if (!btn || !panel) return;
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const willOpen = !panel.classList.contains('active');
+                closeAllMorePanels();
+                if (willOpen) {
+                    panel.classList.add('active');
+                    btn.classList.add('active');
+                }
+            });
+        }
+        function closeAllMorePanels() {
+            document.querySelectorAll('.more-panel').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.more-btn').forEach(b => b.classList.remove('active'));
+        }
+        window.closeAllMorePanels = closeAllMorePanels;
+
+        wirePanel(document.getElementById('moreBtn'), document.getElementById('morePanel'));
+        wirePanel(document.getElementById('moreBtnMobile'), document.getElementById('morePanelMobile'));
+
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.more-panel') || e.target.closest('.more-btn')) return;
+            closeAllMorePanels();
+        });
+
+        function wireFileTrigger(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.addEventListener('click', function() {
+                closeAllMorePanels();
+                if (!currentRoomId) {
+                    showInlineToast('请先选择一个聊天室');
+                    return;
+                }
+                document.getElementById('fileInput').click();
+            });
+        }
+        wireFileTrigger('morePanelFileBtn');
+        wireFileTrigger('morePanelFileBtnMobile');
+
+        function wireVoiceTrigger(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.addEventListener('click', function() {
+                closeAllMorePanels();
+                if (!currentRoomId) { showInlineToast('请先选择一个聊天室'); return; }
+                const room = rooms.find(r => r.id === currentRoomId);
+                window.VoiceCall.start(currentRoomId, room ? room.name : '');
+            });
+        }
+
+        function openVoiceCallWidget(roomId) {
+            const room = rooms.find(r => r.id === roomId);
+            const roomName = room ? room.name : '';
+            const url = `/voice/widget?room_id=${roomId}&room_name=${encodeURIComponent(roomName)}`;
+            if (voiceCallWindowRef && !voiceCallWindowRef.closed) {
+                voiceCallWindowRef.focus(); // 已经开着（可能是别的房间），聚焦即可，挂件内部会提示"请先挂断当前通话"
+                return;
+            }
+            voiceCallWindowRef = window.open(url, 'voiceCallWidget', 'width=380,height=560,resizable=yes');
+        }
+
+        let voiceCallWindowRef = null;
+        wireVoiceTrigger('morePanelVoiceBtn');
+        wireVoiceTrigger('morePanelVoiceBtnMobile');
+
+        function wireVoiceInputTrigger(id, mode) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.addEventListener('click', function() {
+                closeAllMorePanels();
+                startVoiceRecording(mode);
+            });
+        }
+        wireVoiceInputTrigger('morePanelVoiceInputBtn', 'desktop');
+        wireVoiceInputTrigger('morePanelVoiceInputBtnMobile', 'mobile');
+
+        function wireAIVisionTrigger(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.addEventListener('click', function() {
+                closeAllMorePanels();
+                if (!currentRoomId) { showInlineToast('请先选择一个聊天室'); return; }
+                document.getElementById('aiVisionInput').click();
+            });
+        }
+        wireAIVisionTrigger('morePanelAIVisionBtn');
+        wireAIVisionTrigger('morePanelAIVisionBtnMobile');
+    })();
+
+    //  全局设备开关（语音通话默认设备状态，仅影响下次发起/加入通话时的初始状态）
+    const DEVICE_DEFAULTS_KEY = 'voiceDeviceDefaults';
+    function getDeviceDefaults() {
+        try {
+            const raw = localStorage.getItem(DEVICE_DEFAULTS_KEY);
+            if (raw) return Object.assign({ mic: true, cam: false, speaker: true }, JSON.parse(raw));
+        } catch (e) {}
+        return { mic: true, cam: false, speaker: true };
+    }
+    function setDeviceDefault(device, value) {
+        const d = getDeviceDefaults();
+        d[device] = value;
+        localStorage.setItem(DEVICE_DEFAULTS_KEY, JSON.stringify(d));
+    }
+    function updateDeviceBtnIcon(btn, device, on) {
+        if (!btn) return;
+        const icon = btn.querySelector('i');
+        btn.classList.toggle('off', !on);
+        if (!icon) return;
+        if (device === 'mic') icon.className = on ? 'fas fa-microphone' : 'fas fa-microphone-slash';
+        else if (device === 'cam') icon.className = on ? 'fas fa-video' : 'fas fa-video-slash';
+        else if (device === 'speaker') icon.className = on ? 'fas fa-volume-up' : 'fas fa-volume-mute';
+    }
+    (function initGlobalDeviceBar() {
+        const defaults = getDeviceDefaults();
+        const micBtn = document.getElementById('globalMicBtn');
+        const camBtn = document.getElementById('globalCamBtn');
+        const speakerBtn = document.getElementById('globalSpeakerBtn');
+        updateDeviceBtnIcon(micBtn, 'mic', defaults.mic);
+        updateDeviceBtnIcon(camBtn, 'cam', defaults.cam);
+        updateDeviceBtnIcon(speakerBtn, 'speaker', defaults.speaker);
+        [['mic', micBtn], ['cam', camBtn], ['speaker', speakerBtn]].forEach(([device, btn]) => {
+            if (!btn) return;
+            btn.addEventListener('click', function() {
+                const nowOn = !getDeviceDefaults()[device];
+                setDeviceDefault(device, nowOn);
+                updateDeviceBtnIcon(btn, device, nowOn);
+            });
+        });
+
+        // 收起 / 展开（移动端由底栏输入框状态联动，见下方 mobile-chat-input-active 处理）
+    })();
+
+    // 移动端：全局设备开关跟随底部导航栏切换到"输入框模式"时才显示，且始终紧贴在底部导航栏（含输入框）的正上方。
+    (function initMobileDeviceBarPosition() {
+        const bar = document.getElementById('globalDeviceBar');
+        let syncTimer = null;
+
+        function positionBar() {
+            const nav = document.getElementById('mobileNav');
+            if (!bar || !nav) return;
+            const rect = nav.getBoundingClientRect();
+            const gap = Math.max(12, Math.round(window.innerHeight - rect.top + 10));
+            bar.style.setProperty('--mobile-bar-bottom', gap + 'px');
+        }
+
+        const observer = new MutationObserver(() => {
+            const active = document.body.classList.contains('mobile-chat-input-active');
+            clearInterval(syncTimer);
+            if (active) {
+                positionBar();
+                syncTimer = setInterval(positionBar, 300);
+            }
+        });
+        observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    })();
+
+
+    //  语音调试面板
+    function safeGetCapabilities(track) {
+        try { return track.getCapabilities ? track.getCapabilities() : null; } catch (e) { return null; }
+    }
+
+    async function collectVoiceDebugInfo() {
+        const peers = Object.keys(voiceState.peers).map(peerId => {
+            const p = voiceState.peers[peerId];
+            return {
+                user_id: peerId,
+                username: p && p.info && (p.info.full_name || p.info.username),
+                mic: p && p.info && p.info.mic,
+                cam: p && p.info && p.info.cam,
+                iceConnectionState: p && p.iceState,
+                connectionState: p && p.connState,
+                signalingState: p && p.pc && p.pc.signalingState,
+            };
+        });
+
+        // 系统里所有可见的音视频输入/输出设备
+        let devices = [];
+        if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+            try {
+                const list = await navigator.mediaDevices.enumerateDevices();
+                devices = list.map(d => ({
+                    kind: d.kind,
+                    label: d.label || '(无标签，通常代表尚未授权)',
+                    deviceId: d.deviceId ? d.deviceId.slice(0, 10) + '…' : '',
+                }));
+            } catch (e) {
+                devices = [{ error: String(e) }];
+            }
+        }
+
+        // 浏览器记录的权限状态：granted/denied/prompt
+        const permissions = {};
+        if (navigator.permissions && navigator.permissions.query) {
+            for (const name of ['microphone', 'camera']) {
+                try {
+                    const status = await navigator.permissions.query({ name });
+                    permissions[name] = status.state;
+                } catch (e) {
+                    permissions[name] = '当前浏览器不支持查询此权限';
+                }
+            }
+        } else {
+            permissions.note = '当前浏览器不支持 Permissions API';
+        }
+
+        // 本地音视频轨道的实际协商参数
+        let localAudioSettings = null, localVideoSettings = null;
+        let localAudioCapabilities = null, localVideoCapabilities = null;
+        if (voiceState.localStream) {
+            const at = voiceState.localStream.getAudioTracks()[0];
+            const vt = voiceState.localStream.getVideoTracks()[0];
+            if (at) {
+                localAudioSettings = at.getSettings ? at.getSettings() : null;
+                localAudioCapabilities = safeGetCapabilities(at);
+            }
+            if (vt) {
+                localVideoSettings = vt.getSettings ? vt.getSettings() : null;
+                localVideoCapabilities = safeGetCapabilities(vt);
+            }
+        }
+
+        return {
+            time: new Date().toISOString(),
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+            isSecureContext: window.isSecureContext,
+            pageURL: window.location.href,
+            hasMediaDevices: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+            hasMediaRecorder: !!window.MediaRecorder,
+            permissions,
+            devices,
+            currentRoomId,
+            voice: {
+                active: voiceState.active,
+                minimized: voiceState.minimized,
+                roomId: voiceState.roomId,
+                mic: voiceState.mic,
+                cam: voiceState.cam,
+                speaker: voiceState.speaker,
+                micAvailable: voiceState.micAvailable,
+                camAvailable: voiceState.camAvailable,
+                localStreamActive: !!(voiceState.localStream && voiceState.localStream.active),
+                localTracks: voiceState.localStream ? voiceState.localStream.getTracks().map(t => ({
+                    kind: t.kind, label: t.label, enabled: t.enabled, muted: t.muted, readyState: t.readyState,
+                })) : [],
+                localAudioSettings,
+                localVideoSettings,
+                localAudioCapabilities,
+                localVideoCapabilities,
+            },
+            peers,
+            deviceDefaults: getDeviceDefaults(),
+            voiceMessageRecording: {
+                supported: !!window.MediaRecorder,
+                active: typeof voiceRecordState !== 'undefined' ? voiceRecordState.active : false,
+                elapsedSec: typeof voiceRecordState !== 'undefined' ? voiceRecordState.elapsedSec : 0,
+            },
+        };
+    }
+
+    let voiceDebugRefreshTimer = null;
+    async function refreshVoiceDebugPanel() {
+        const body = document.getElementById('voiceDebugBody');
+        if (!body) return;
+        const info = await collectVoiceDebugInfo();
+        body.textContent = JSON.stringify(info, null, 2);
+    }
+
+    function isVoiceDebugPanelOpen() {
+        const panel = document.getElementById('voiceDebugPanel');
+        return !!(panel && panel.classList.contains('active'));
+    }
+
+    function refreshVoiceDebugPanelIfOpen() {
+        if (isVoiceDebugPanelOpen()) refreshVoiceDebugPanel();
+    }
+
+    (function initVoiceDebugPanel() {
+        const toggleBtn = document.getElementById('voiceDebugToggleBtn');
+        const panel = document.getElementById('voiceDebugPanel');
+        const closeBtn = document.getElementById('voiceDebugCloseBtn');
+        const copyBtn = document.getElementById('voiceDebugCopyBtn');
+        if (!toggleBtn || !panel) return;
+
+        function openPanel() {
+            panel.classList.add('active');
+            toggleBtn.classList.add('active');
+            refreshVoiceDebugPanel();
+            clearInterval(voiceDebugRefreshTimer);
+            voiceDebugRefreshTimer = setInterval(refreshVoiceDebugPanel, 1000);
+        }
+        function closePanel() {
+            panel.classList.remove('active');
+            toggleBtn.classList.remove('active');
+            clearInterval(voiceDebugRefreshTimer);
+        }
+        toggleBtn.addEventListener('click', function() {
+            if (panel.classList.contains('active')) closePanel();
+            else openPanel();
+        });
+        if (closeBtn) closeBtn.addEventListener('click', closePanel);
+        if (copyBtn) {
+            copyBtn.addEventListener('click', async function() {
+                const text = JSON.stringify(await collectVoiceDebugInfo(), null, 2);
+                try {
+                    await navigator.clipboard.writeText(text);
+                    showInlineToast('诊断信息已复制到剪贴板');
+                } catch (e) {
+                    console.log('[语音调试信息]', text);
+                    showInlineToast('复制失败，已输出到控制台');
+                }
+            });
+        }
+    })();
+
+
+    //  语音输入消息
+    const VOICE_RECORD_MAX_SEC = 60;
+    const voiceRecordState = {
+        active: false,
+        recorder: null,
+        stream: null,
+        chunks: [],
+        elapsedSec: 0,
+        mode: null,       // 'desktop' | 'mobile'
+        cancelled: false,
+        timerId: null,
+    };
+
+    function pickAudioMimeType() {
+        const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg'];
+        if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return '';
+        for (const c of candidates) {
+            if (MediaRecorder.isTypeSupported(c)) return c;
+        }
+        return '';
+    }
+
+    function formatRecordTime(sec) {
+        const m = Math.floor(sec / 60);
+        const s = sec % 60;
+        return m + ':' + String(s).padStart(2, '0');
+    }
+
+    function getRecordBarEls(mode) {
+        const suffix = mode === 'mobile' ? 'Mobile' : '';
+        return {
+            container: document.getElementById(mode === 'mobile' ? 'chatInputMobile' : 'chatInputDesktop'),
+            bar: document.getElementById('voiceRecordBar' + suffix),
+            time: document.getElementById('voiceRecordTime' + suffix),
+            wave: document.getElementById('voiceRecordWave' + suffix),
+        };
+    }
+
+    // 根据波浪条容器的实际宽度动态铺满条纹。
+    function buildWaveBars(waveEl) {
+        if (!waveEl) return;
+        const dot = waveEl.querySelector('.rec-dot');
+        waveEl.innerHTML = '';
+        waveEl.appendChild(dot || Object.assign(document.createElement('span'), { className: 'rec-dot' }));
+
+        const styles = window.getComputedStyle(waveEl);
+        const paddingX = parseFloat(styles.paddingLeft || '0') + parseFloat(styles.paddingRight || '0');
+        const dotSpace = 9 + 6; // rec-dot 宽度 + 它的 margin-right
+        const gap = 3;
+        const barMaxWidth = 4;
+        const usableWidth = Math.max(0, (waveEl.clientWidth || 240) - paddingX - dotSpace);
+        const pitch = barMaxWidth + gap;
+        const count = Math.max(10, Math.floor((usableWidth + gap) / pitch));
+
+        for (let i = 0; i < count; i++) {
+            const bar = document.createElement('span');
+            bar.className = 'wave-bar';
+            bar.style.animationDelay = ((i % 8) * 0.09) + 's';
+            waveEl.appendChild(bar);
+        }
+    }
+
+    async function startVoiceRecording(mode) {
+        if (!currentRoomId) { showInlineToast('请先选择一个聊天室'); return; }
+        if (voiceRecordState.active) return;
+        if (voiceState.active) { showInlineToast('语音通话进行中，暂不支持同时录制语音消息'); return; }
+
+        if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            showInlineToast('当前页面不是安全连接（非 HTTPS 且非 localhost），浏览器已禁止使用麦克风，请通过 https:// 或 http://localhost 访问');
+            return;
+        }
+        if (!window.MediaRecorder) {
+            showInlineToast('当前浏览器不支持录音功能');
+            return;
+        }
+
+        let stream;
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (e) {
+            showInlineToast(describeMediaError(e && e.name) || '无法访问麦克风，请检查浏览器权限');
+            return;
+        }
+
+        const mimeType = pickAudioMimeType();
+        let recorder;
+        try {
+            recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+        } catch (e) {
+            showInlineToast('当前浏览器不支持录音功能');
+            stream.getTracks().forEach(t => t.stop());
+            return;
+        }
+
+        voiceRecordState.active = true;
+        voiceRecordState.recorder = recorder;
+        voiceRecordState.stream = stream;
+        voiceRecordState.chunks = [];
+        voiceRecordState.elapsedSec = 0;
+        voiceRecordState.mode = mode;
+        voiceRecordState.cancelled = false;
+
+        recorder.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) voiceRecordState.chunks.push(e.data);
+        };
+        recorder.onstop = handleVoiceRecordingStopped;
+        recorder.start();
+
+        const { container, bar, time, wave } = getRecordBarEls(mode);
+        if (container) container.classList.add('recording-mode');
+        if (bar) bar.classList.remove('limit-warn');
+        if (time) time.textContent = '0:00 / ' + formatRecordTime(VOICE_RECORD_MAX_SEC);
+        buildWaveBars(wave);
+
+        clearInterval(voiceRecordState.timerId);
+        voiceRecordState.timerId = setInterval(() => {
+            voiceRecordState.elapsedSec += 1;
+            const els = getRecordBarEls(voiceRecordState.mode);
+            if (els.time) els.time.textContent = formatRecordTime(voiceRecordState.elapsedSec) + ' / ' + formatRecordTime(VOICE_RECORD_MAX_SEC);
+            if (els.bar) els.bar.classList.toggle('limit-warn', voiceRecordState.elapsedSec >= VOICE_RECORD_MAX_SEC - 10);
+            if (voiceRecordState.elapsedSec >= VOICE_RECORD_MAX_SEC) {
+                stopVoiceRecording(false);
+            }
+        }, 1000);
+
+        refreshVoiceDebugPanelIfOpen();
+    }
+
+    function stopVoiceRecording(cancel) {
+        if (!voiceRecordState.active || !voiceRecordState.recorder) return;
+        voiceRecordState.cancelled = !!cancel;
+        clearInterval(voiceRecordState.timerId);
+        voiceRecordState.timerId = null;
+        try { voiceRecordState.recorder.stop(); } catch (e) { /* 忽略已停止的录音器 */ }
+    }
+
+    async function uploadVoiceMessage(roomId, blob, durationSec) {
+        const ext = (blob.type || '').includes('ogg') ? 'ogg' : 'webm';
+        const form = new FormData();
+        form.append('audio', blob, 'voice.' + ext);
+        form.append('room_id', String(roomId));
+        form.append('duration', String(durationSec));
+        const resp = await fetch('/api/voice-message/upload', { method: 'POST', body: form });
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({ error: '上传失败' }));
+            throw new Error(err.error || '上传失败');
+        }
+        return resp.json();
+    }
+
+    async function handleVoiceRecordingStopped() {
+        const { container, bar } = getRecordBarEls(voiceRecordState.mode);
+        if (container) container.classList.remove('recording-mode');
+        if (bar) bar.classList.remove('limit-warn');
+        if (voiceRecordState.stream) voiceRecordState.stream.getTracks().forEach(t => t.stop());
+
+        const chunks = voiceRecordState.chunks;
+        const elapsedSec = voiceRecordState.elapsedSec;
+        const cancelled = voiceRecordState.cancelled;
+        const roomId = currentRoomId;
+
+        voiceRecordState.active = false;
+        voiceRecordState.recorder = null;
+        voiceRecordState.stream = null;
+        voiceRecordState.chunks = [];
+        refreshVoiceDebugPanelIfOpen();
+
+        if (cancelled) return;
+        if (elapsedSec < 1) { showInlineToast('录音时间太短'); return; }
+        if (!chunks.length) { showInlineToast('未录到有效音频'); return; }
+
+        const mimeType = chunks[0].type || 'audio/webm';
+        const blob = new Blob(chunks, { type: mimeType });
+
+        try {
+            await uploadVoiceMessage(roomId, blob, elapsedSec);
+            if (roomId === currentRoomId) loadMessages(currentRoomId, false);
+        } catch (e) {
+            showInlineToast('语音消息发送失败: ' + e.message);
+        }
+    }
+
+    ['', 'Mobile'].forEach(suffix => {
+        const cancelBtn = document.getElementById('voiceRecordCancelBtn' + suffix);
+        const stopBtn = document.getElementById('voiceRecordStopBtn' + suffix);
+        if (cancelBtn) cancelBtn.addEventListener('click', () => stopVoiceRecording(true));
+        if (stopBtn) stopBtn.addEventListener('click', () => stopVoiceRecording(false));
+    });
+
+    let currentPlayingAudio = null;
+    let currentPlayingBubble = null;
+
+    function resetVoiceMsgIcon(bubbleEl) {
+        const icon = bubbleEl && bubbleEl.querySelector('.voice-msg-icon');
+        if (icon) icon.className = 'fas fa-play voice-msg-icon';
+    }
+
+    function playVoiceMessage(bubbleEl) {
+        const src = bubbleEl.dataset.audioSrc;
+        if (!src) return;
+
+        if (currentPlayingAudio && currentPlayingBubble === bubbleEl) {
+            currentPlayingAudio.pause();
+            currentPlayingAudio = null;
+            currentPlayingBubble = null;
+            resetVoiceMsgIcon(bubbleEl);
+            return;
+        }
+        if (currentPlayingAudio) {
+            currentPlayingAudio.pause();
+            resetVoiceMsgIcon(currentPlayingBubble);
+        }
+
+        const audio = new Audio(src);
+        currentPlayingAudio = audio;
+        currentPlayingBubble = bubbleEl;
+        const icon = bubbleEl.querySelector('.voice-msg-icon');
+        if (icon) icon.className = 'fas fa-volume-up voice-msg-icon playing';
+
+        audio.addEventListener('ended', () => {
+            resetVoiceMsgIcon(bubbleEl);
+            if (currentPlayingBubble === bubbleEl) { currentPlayingAudio = null; currentPlayingBubble = null; }
+        });
+        audio.play().catch(() => {
+            showInlineToast('播放失败');
+            resetVoiceMsgIcon(bubbleEl);
+            if (currentPlayingBubble === bubbleEl) { currentPlayingAudio = null; currentPlayingBubble = null; }
+        });
+    }
+
+    window.addEventListener('beforeunload', () => {
+        if (voiceRecordState.active) stopVoiceRecording(true);
+    });
+
+    //  语音聊天
+    const voiceState = {
+        active: false,
+        minimized: false,
+        roomId: null,
+        localStream: null,
+        peers: {},        // userID -> { pc, info }
+        mic: true,
+        cam: false,
+        speaker: true,
+        micAvailable: true,  // 本次通话麦克风是否可用
+        camAvailable: true,  // 本次通话摄像头是否可用
+        abortController: null,
+    };
+
+    function voiceInitial(name) {
+        return (name || '?').trim().charAt(0).toUpperCase() || '?';
+    }
+
+    function getOrCreateTile(peerId, info) {
+        let tile = document.getElementById('voiceTile-' + peerId);
+        if (tile) return tile;
+        tile = document.createElement('div');
+        tile.className = 'voice-tile no-video';
+        tile.id = 'voiceTile-' + peerId;
+        const name = (peerId === 'local') ? '我' : (info && (info.full_name || info.username)) || '用户';
+        tile.innerHTML = `
+            <video autoplay playsinline ${peerId === 'local' ? 'muted' : ''}></video>
+            <div class="voice-tile-avatar">${escapeHtml(voiceInitial(name))}</div>
+            <div class="voice-tile-name"><i class="fas fa-microphone"></i> <span>${escapeHtml(name)}</span></div>
+        `;
+        document.getElementById('voiceTiles').appendChild(tile);
+        return tile;
+    }
+
+    function setTileStream(peerId, stream) {
+        const tile = document.getElementById('voiceTile-' + peerId);
+        if (!tile) return;
+        const video = tile.querySelector('video');
+        video.srcObject = stream;
+        if (peerId !== 'local') video.muted = !voiceState.speaker;
+    }
+
+    function updateTileMicIcon(peerId, micOn) {
+        const tile = document.getElementById('voiceTile-' + peerId);
+        if (!tile) return;
+        const icon = tile.querySelector('.voice-tile-name i');
+        if (icon) icon.className = micOn ? 'fas fa-microphone' : 'fas fa-microphone-slash';
+    }
+
+    function updateTileCamState(peerId, camOn) {
+        const tile = document.getElementById('voiceTile-' + peerId);
+        if (!tile) return;
+        tile.classList.toggle('no-video', !camOn);
+    }
+
+    function removeTile(peerId) {
+        const tile = document.getElementById('voiceTile-' + peerId);
+        if (tile) tile.remove();
+    }
+
+    async function sendVoiceSignal(to, signalType, payload) {
+        try {
+            await apiFetch(`/api/voice/${voiceState.roomId}/signal`, {
+                method: 'POST',
+                body: JSON.stringify({ to, signal_type: signalType, payload }),
+            });
+        } catch (e) {
+            console.error('信令发送失败:', e);
+        }
+    }
+
+    function createPeerConnection(peerId, info) {
+        const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+        if (voiceState.localStream) {
+            voiceState.localStream.getTracks().forEach(t => pc.addTrack(t, voiceState.localStream));
+        }
+        pc.onicecandidate = (e) => {
+            if (e.candidate) sendVoiceSignal(peerId, 'ice', e.candidate.toJSON());
+        };
+        pc.ontrack = (e) => {
+            getOrCreateTile(peerId, info);
+            setTileStream(peerId, e.streams[0]);
+            updateTileCamState(peerId, info ? info.cam : true);
+        };
+        pc.oniceconnectionstatechange = () => {
+            const peer = voiceState.peers[peerId];
+            if (peer) peer.iceState = pc.iceConnectionState;
+            refreshVoiceDebugPanelIfOpen();
+        };
+        pc.onconnectionstatechange = () => {
+            const peer = voiceState.peers[peerId];
+            if (peer) peer.connState = pc.connectionState;
+            refreshVoiceDebugPanelIfOpen();
+        };
+        voiceState.peers[peerId] = {
+            pc,
+            info: info || { user_id: peerId, username: '用户' + peerId, full_name: '用户' + peerId, mic: true, cam: false },
+            iceState: pc.iceConnectionState,
+            connState: pc.connectionState,
+        };
+        getOrCreateTile(peerId, voiceState.peers[peerId].info);
+        updateTileMicIcon(peerId, voiceState.peers[peerId].info.mic !== false);
+        updateTileCamState(peerId, !!voiceState.peers[peerId].info.cam);
+        refreshVoiceDebugPanelIfOpen();
+        return pc;
+    }
+
+    async function initiateOfferTo(peerId, info) {
+        if (voiceState.peers[peerId]) return; // 已存在连接
+        const pc = createPeerConnection(peerId, info);
+        try {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            sendVoiceSignal(peerId, 'offer', { sdp: pc.localDescription.sdp, type: pc.localDescription.type });
+        } catch (e) {
+            console.error('创建 offer 失败:', e);
+        }
+    }
+
+    async function handleVoiceSignalEvent(evt) {
+        const from = evt.from;
+        const type = evt.signal_type;
+        const payload = evt.payload;
+        let peer = voiceState.peers[from];
+        if (!peer && type === 'offer') {
+            createPeerConnection(from, null);
+            peer = voiceState.peers[from];
+        }
+        if (!peer) return;
+        const pc = peer.pc;
+        try {
+            if (type === 'offer') {
+                await pc.setRemoteDescription(new RTCSessionDescription(payload));
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                sendVoiceSignal(from, 'answer', { sdp: pc.localDescription.sdp, type: pc.localDescription.type });
+            } else if (type === 'answer') {
+                await pc.setRemoteDescription(new RTCSessionDescription(payload));
+            } else if (type === 'ice') {
+                try { await pc.addIceCandidate(payload); } catch (e) { /* 忽略乱序候选 */ }
+            }
+        } catch (e) {
+            console.error('处理语音信令失败:', e);
+        }
+    }
+
+    function handleVoiceEvent(evt) {
+        if (!voiceState.active) return;
+        switch (evt.type) {
+            case 'init':
+                (evt.participants || []).forEach(p => {
+                    if (voiceState.peers[p.user_id]) return;
+                    getOrCreateTile(p.user_id, p);
+                    if (currentUserID < p.user_id) initiateOfferTo(p.user_id, p);
+                });
+                break;
+            case 'peer-joined': {
+                const u = evt.user;
+                if (!u || voiceState.peers[u.user_id]) return;
+                getOrCreateTile(u.user_id, u);
+                if (currentUserID < u.user_id) initiateOfferTo(u.user_id, u);
+                break;
+            }
+            case 'peer-left': {
+                const peer = voiceState.peers[evt.user_id];
+                if (peer && peer.pc) peer.pc.close();
+                delete voiceState.peers[evt.user_id];
+                removeTile(evt.user_id);
+                break;
+            }
+            case 'peer-state': {
+                const peer = voiceState.peers[evt.user_id];
+                if (peer) { peer.info.mic = evt.mic; peer.info.cam = evt.cam; }
+                updateTileMicIcon(evt.user_id, evt.mic);
+                updateTileCamState(evt.user_id, evt.cam);
+                break;
+            }
+            case 'signal':
+                handleVoiceSignalEvent(evt);
+                break;
+            case 'call-ended':
+                closeVoiceCall(false);
+                break;
+            default:
+                break;
+        }
+    }
+
+    async function openVoiceStream(roomId) {
+        voiceState.abortController = new AbortController();
+        try {
+            const resp = await fetch(`/api/voice/${roomId}/stream`, { signal: voiceState.abortController.signal });
+            if (!resp.ok || !resp.body) return;
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                let idx;
+                while ((idx = buffer.indexOf('\n')) !== -1) {
+                    const line = buffer.slice(0, idx).trim();
+                    buffer = buffer.slice(idx + 1);
+                    if (!line) continue;
+                    try { handleVoiceEvent(JSON.parse(line)); } catch (e) { /* 忽略解析失败的行 */ }
+                }
+            }
+        } catch (e) {
+            if (e.name !== 'AbortError') console.error('语音信令通道断开:', e);
+        }
+    }
+
+    // 不会阻止用户进入语音聊天室。
+    async function acquireVoiceMedia(wantCam) {
+        let stream = null;
+        let micAvailable = true;
+        let camAvailable = true;
+        let toastMsg = '';
+        if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            console.warn('[语音聊天] 当前不是安全上下文（isSecureContext=' + window.isSecureContext + '），无法调用摄像头/麦克风 API。请通过 https:// 或 http://localhost 访问。');
+            return {
+                stream: null,
+                micAvailable: false,
+                camAvailable: false,
+                toastMsg: '当前页面不是安全连接（非 HTTPS 且非 localhost），浏览器已禁止弹出摄像头/麦克风权限请求。请通过 https:// 或 http://localhost 访问后重试，已以旁听模式加入语音聊天室',
+            };
+        }
+
+        let firstErrName = '';
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: wantCam });
+            camAvailable = wantCam;
+        } catch (e1) {
+            firstErrName = e1 && e1.name;
+            if (wantCam) {
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    camAvailable = false;
+                    toastMsg = '未检测到摄像头或未授权摄像头权限，已使用纯语音模式加入';
+                } catch (e2) {
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                        micAvailable = false;
+                        toastMsg = '未检测到麦克风或未授权麦克风权限，已开启摄像头以旁听模式加入';
+                    } catch (e3) {
+                        micAvailable = false;
+                        camAvailable = false;
+                        toastMsg = describeMediaError(firstErrName);
+                    }
+                }
+            } else {
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    micAvailable = false;
+                    toastMsg = '未检测到麦克风或未授权麦克风权限，已开启摄像头以旁听模式加入';
+                } catch (e2) {
+                    micAvailable = false;
+                    camAvailable = false;
+                    toastMsg = describeMediaError(firstErrName);
+                }
+            }
+        }
+        return { stream, micAvailable, camAvailable, toastMsg };
+    }
+
+    function describeMediaError(errName) {
+        if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+            return '麦克风/摄像头权限已被拒绝，请点击浏览器地址栏左侧的锁形图标，将麦克风/摄像头权限设为"允许"后刷新页面重试。已以旁听模式加入语音聊天室';
+        }
+        if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
+            return '未检测到麦克风/摄像头设备。已以旁听模式加入语音聊天室';
+        }
+        if (errName === 'NotReadableError' || errName === 'TrackStartError') {
+            return '麦克风/摄像头正被其他程序占用，请关闭占用它们的程序后重试。已以旁听模式加入语音聊天室';
+        }
+        return '未能获取麦克风/摄像头（' + (errName || '未知错误') + '），已以旁听模式加入语音聊天室';
+    }
+
+    function updateVoiceAvailabilityUI() {
+        const micBtn = document.getElementById('voiceMicBtn');
+        const camBtn = document.getElementById('voiceCamBtn');
+        if (micBtn) {
+            micBtn.disabled = !voiceState.micAvailable;
+            micBtn.title = voiceState.micAvailable ? '麦克风' : '未检测到麦克风或未授权';
+        }
+        if (camBtn) {
+            camBtn.disabled = !voiceState.camAvailable;
+            camBtn.title = voiceState.camAvailable ? '摄像头' : '未检测到摄像头或未授权';
+        }
+    }
+
+    async function openVoiceCall(roomId, opts) {
+        opts = opts || {};
+        if (voiceState.active) {
+            if (voiceState.roomId === roomId) {
+                showVoiceOverlay();
+            } else {
+                showInlineToast('请先挂断当前语音通话');
+            }
+            return;
+        }
+        if (!roomId) return;
+
+        const defaults = getDeviceDefaults();
+
+        // 主动触发浏览器的麦克风/摄像头权限请求。
+        const media = await acquireVoiceMedia(defaults.cam);
+        voiceState.localStream = media.stream;
+        voiceState.micAvailable = media.micAvailable;
+        voiceState.camAvailable = media.camAvailable;
+        voiceState.mic = defaults.mic && media.micAvailable;
+        voiceState.cam = defaults.cam && media.camAvailable;
+        voiceState.speaker = defaults.speaker;
+        if (media.toastMsg) showInlineToast(media.toastMsg);
+
+        if (voiceState.localStream) {
+            voiceState.localStream.getAudioTracks().forEach(t => t.enabled = voiceState.mic);
+            voiceState.localStream.getVideoTracks().forEach(t => t.enabled = voiceState.cam);
+        }
+
+        voiceState.roomId = roomId;
+        voiceState.active = true;
+        voiceState.peers = {};
+
+        document.getElementById('voiceTiles').innerHTML = '';
+        getOrCreateTile('local', { full_name: '我' });
+        if (voiceState.localStream) setTileStream('local', voiceState.localStream);
+        updateTileCamState('local', voiceState.cam);
+        updateTileMicIcon('local', voiceState.mic);
+        updateVoiceControlIcons();
+        updateVoiceAvailabilityUI();
+        showVoiceOverlay();
+
+        try {
+            if (!opts.skipInvite) {
+                await apiFetch(`/api/voice/${roomId}/invite`, { method: 'POST', body: JSON.stringify({}) });
+                if (roomId === currentRoomId) loadMessages(currentRoomId, false);
+            }
+            await apiFetch(`/api/voice/${roomId}/join`, { method: 'POST', body: JSON.stringify({ mic: voiceState.mic, cam: voiceState.cam }) });
+        } catch (e) {
+            showInlineToast('加入语音通话失败: ' + e.message);
+            closeVoiceCall(true);
+            return;
+        }
+
+        refreshVoiceDebugPanelIfOpen();
+        openVoiceStream(roomId);
+    }
+
+    function showVoiceOverlay() {
+        voiceState.minimized = false;
+        document.getElementById('voiceOverlay').classList.add('active');
+        document.getElementById('voiceMiniPill').classList.remove('active');
+        const room = rooms.find(r => r.id === voiceState.roomId);
+        document.getElementById('voiceRoomTitle').textContent = room ? `语音聊天 - ${room.name}` : '语音聊天';
+    }
+
+    function minimizeVoiceOverlay() {
+        voiceState.minimized = true;
+        document.getElementById('voiceOverlay').classList.remove('active');
+        document.getElementById('voiceMiniPill').classList.add('active');
+    }
+
+    function updateVoiceControlIcons() {
+        updateDeviceBtnIcon(document.getElementById('voiceMicBtn'), 'mic', voiceState.mic);
+        updateDeviceBtnIcon(document.getElementById('voiceCamBtn'), 'cam', voiceState.cam);
+        updateDeviceBtnIcon(document.getElementById('voiceSpeakerBtn'), 'speaker', voiceState.speaker);
+    }
+
+    async function toggleVoiceDevice(device) {
+        if (!voiceState.active) return;
+        if (device === 'mic') {
+            if (!voiceState.micAvailable) { showInlineToast('未检测到可用麦克风或未授权'); return; }
+            voiceState.mic = !voiceState.mic;
+            if (voiceState.localStream) voiceState.localStream.getAudioTracks().forEach(t => t.enabled = voiceState.mic);
+            updateTileMicIcon('local', voiceState.mic);
+        } else if (device === 'cam') {
+            if (!voiceState.camAvailable) { showInlineToast('未检测到可用摄像头或未授权'); return; }
+            voiceState.cam = !voiceState.cam;
+            if (voiceState.localStream) voiceState.localStream.getVideoTracks().forEach(t => t.enabled = voiceState.cam);
+            updateTileCamState('local', voiceState.cam);
+        } else if (device === 'speaker') {
+            voiceState.speaker = !voiceState.speaker;
+            Object.keys(voiceState.peers).forEach(peerId => {
+                const tile = document.getElementById('voiceTile-' + peerId);
+                if (tile) tile.querySelector('video').muted = !voiceState.speaker;
+            });
+        }
+        updateVoiceControlIcons();
+        if (device === 'mic' || device === 'cam') {
+            try {
+                await apiFetch(`/api/voice/${voiceState.roomId}/state`, {
+                    method: 'POST',
+                    body: JSON.stringify({ mic: voiceState.mic, cam: voiceState.cam }),
+                });
+            } catch (e) { /* 忽略广播失败 */ }
+        }
+    }
+
+    async function closeVoiceCall(notifyServer) {
+        const roomId = voiceState.roomId;
+        if (voiceState.abortController) voiceState.abortController.abort();
+        Object.values(voiceState.peers).forEach(p => { if (p && p.pc) p.pc.close(); });
+        if (voiceState.localStream) voiceState.localStream.getTracks().forEach(t => t.stop());
+        if (notifyServer && roomId) {
+            try { await apiFetch(`/api/voice/${roomId}/leave`, { method: 'POST', body: JSON.stringify({}) }); } catch (e) {}
+        }
+        voiceState.active = false;
+        voiceState.minimized = false;
+        voiceState.roomId = null;
+        voiceState.localStream = null;
+        voiceState.micAvailable = true;
+        voiceState.camAvailable = true;
+        voiceState.peers = {};
+        document.getElementById('voiceTiles').innerHTML = '';
+        document.getElementById('voiceOverlay').classList.remove('active');
+        document.getElementById('voiceMiniPill').classList.remove('active');
+        refreshVoiceDebugPanelIfOpen();
+        if (roomId === currentRoomId) loadMessages(currentRoomId, false);
+    }
+
+    document.getElementById('voiceMinimizeBtn').addEventListener('click', minimizeVoiceOverlay);
+    document.getElementById('voiceExpandBtn').addEventListener('click', showVoiceOverlay);
+    document.getElementById('voiceMicBtn').addEventListener('click', () => toggleVoiceDevice('mic'));
+    document.getElementById('voiceCamBtn').addEventListener('click', () => toggleVoiceDevice('cam'));
+    document.getElementById('voiceSpeakerBtn').addEventListener('click', () => toggleVoiceDevice('speaker'));
+    document.getElementById('voiceHangupBtn').addEventListener('click', () => closeVoiceCall(true));
+    document.getElementById('voiceCloseBtn').addEventListener('click', () => closeVoiceCall(true));
+    window.addEventListener('beforeunload', () => {
+        if (voiceState.active && voiceState.roomId) {
+            navigator.sendBeacon(`/api/voice/${voiceState.roomId}/leave`, new Blob([JSON.stringify({})], { type: 'application/json' }));
+        }
+    });
+
+</script>
+</body>
+</html>
+{{end}}
